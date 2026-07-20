@@ -20,4 +20,12 @@ npm install
 npm run dev
 ```
 
+Auf dem Ionos VPS
+```bash
+git clone https://github.com/Seyda92/frc-elo.git
+cd frc-elo
+npm install
+npm run build
+npm run start   # Port 3000
+´´´
 Öffne [http://localhost:3000](http://localhost:3000).
