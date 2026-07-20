@@ -27,5 +27,5 @@ cd frc-elo
 npm install
 npm run build
 npm run start   # Port 3000
-´´´
+```
 Öffne [http://localhost:3000](http://localhost:3000).
