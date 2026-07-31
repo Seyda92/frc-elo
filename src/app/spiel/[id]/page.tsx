@@ -1,27 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  formatDateTime,
-  getEvent,
-  getMatch,
-  getMatchStat,
-  getPlayer,
-  matches,
-  type MatchPlayerStat,
-  type MatchSummary,
-} from "@/data/dummy";
+import { getMatchDetail } from "@/db/queries";
+import { formatDateTime } from "@/lib/format";
+import type { MatchDetail, MatchPlayerStat } from "@/db/types";
 
 type Props = {
   params: Promise<{ id: string }>;
 };
 
-export function generateStaticParams() {
-  return matches.map((match) => ({ id: match.id }));
+function parseId(id: string): number | undefined {
+  const n = Number(id);
+  return Number.isInteger(n) ? n : undefined;
 }
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const match = getMatch(id);
+  const numericId = parseId(id);
+  const match = numericId != null ? await getMatchDetail(numericId) : undefined;
   return {
     title: match ? match.scoreLabel : "Spiel",
   };
@@ -29,10 +24,10 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function MatchPage({ params }: Props) {
   const { id } = await params;
-  const match = getMatch(id);
+  const numericId = parseId(id);
+  const match = numericId != null ? await getMatchDetail(numericId) : undefined;
   if (!match) notFound();
 
-  const event = match.eventId ? getEvent(match.eventId) : undefined;
   const isPlayed = match.status === "played";
 
   return (
@@ -42,14 +37,14 @@ export default async function MatchPage({ params }: Props) {
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-amber">
               {isPlayed ? "Spielbericht" : "Geplantes Match"}
-              {event ? ` · ${event.name}` : ""}
+              {match.eventName ? ` · ${match.eventName}` : ""}
             </p>
             <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
               {match.scoreLabel}
             </h1>
             <p className="mt-1 text-sm text-foam-muted">
               {formatDateTime(match.playedAt)}
-              {event ? ` · ${event.location}` : ""}
+              {match.eventLocation ? ` · ${match.eventLocation}` : ""}
             </p>
           </div>
           <Link
@@ -94,14 +89,14 @@ export default async function MatchPage({ params }: Props) {
           <TeamPanel
             title="Team A"
             accent="amber"
-            playerIds={match.teamA}
+            side="A"
             match={match}
             isWinner={match.winner === "A"}
           />
           <TeamPanel
             title="Team B"
             accent="foam"
-            playerIds={match.teamB}
+            side="B"
             match={match}
             isWinner={match.winner === "B"}
           />
@@ -114,16 +109,18 @@ export default async function MatchPage({ params }: Props) {
 function TeamPanel({
   title,
   accent,
-  playerIds,
+  side,
   match,
   isWinner,
 }: {
   title: string;
   accent: "amber" | "foam";
-  playerIds: string[];
-  match: MatchSummary;
+  side: "A" | "B";
+  match: MatchDetail;
   isWinner: boolean;
 }) {
+  const roster = match.playerStats.filter((s) => s.side === side);
+
   return (
     <section
       className={`border ${
@@ -146,34 +143,29 @@ function TeamPanel({
       </header>
 
       <ul className="divide-y divide-line">
-        {playerIds.map((playerId) => {
-          const player = getPlayer(playerId);
-          if (!player) return null;
-          const stats = getMatchStat(match, playerId);
-          return (
-            <li key={playerId} className="px-3 py-4 sm:px-5">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <Link
-                  href={`/spieler/${player.id}`}
-                  className="flex items-center gap-3 transition hover:opacity-90"
-                >
-                  <span className="flex h-12 w-12 items-center justify-center bg-rubber font-display text-amber">
-                    {player.number}
-                  </span>
-                  <div>
-                    <p className="font-display text-xl text-foam hover:text-amber sm:text-2xl">
-                      {player.name}
-                    </p>
-                    <p className="text-sm text-foam-muted">ELO {player.elo}</p>
-                  </div>
-                </Link>
-                {stats ? <EloDelta delta={stats.eloDelta} /> : null}
-              </div>
+        {roster.map((stats) => (
+          <li key={stats.playerId} className="px-3 py-4 sm:px-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <Link
+                href={`/spieler/${stats.playerId}`}
+                className="flex items-center gap-3 transition hover:opacity-90"
+              >
+                <span className="flex h-12 w-12 items-center justify-center bg-rubber font-display text-amber">
+                  {stats.number ?? "–"}
+                </span>
+                <div>
+                  <p className="font-display text-xl text-foam hover:text-amber sm:text-2xl">
+                    {stats.name}
+                  </p>
+                  <p className="text-sm text-foam-muted">ELO {stats.elo}</p>
+                </div>
+              </Link>
+              <EloDelta delta={stats.eloDelta} />
+            </div>
 
-              {stats ? <StatGrid stats={stats} /> : null}
-            </li>
-          );
-        })}
+            <StatGrid stats={stats} />
+          </li>
+        ))}
       </ul>
     </section>
   );
@@ -195,11 +187,10 @@ function EloDelta({ delta }: { delta: number }) {
 
 function StatGrid({ stats }: { stats: MatchPlayerStat }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-3 gap-2">
       <StatCell label="Würfe" value={stats.throws} />
       <StatCell label="Treffer" value={stats.hits} highlight />
       <StatCell label="Bier" value={stats.bonusBeers} />
-      <StatCell label="Verwarn." value={stats.warnings} danger={stats.warnings > 0} />
     </div>
   );
 }
@@ -208,12 +199,10 @@ function StatCell({
   label,
   value,
   highlight,
-  danger,
 }: {
   label: string;
   value: number;
   highlight?: boolean;
-  danger?: boolean;
 }) {
   return (
     <div className="border border-line bg-asphalt/60 p-2">
@@ -222,7 +211,7 @@ function StatCell({
       </p>
       <p
         className={`mt-1 text-center font-display text-2xl ${
-          danger ? "text-clay" : highlight ? "text-amber" : "text-foam"
+          highlight ? "text-amber" : "text-foam"
         }`}
       >
         {value}

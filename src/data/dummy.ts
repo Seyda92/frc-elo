@@ -456,25 +456,3 @@ export function getMatchStat(
 ): MatchPlayerStat | undefined {
   return match.playerStats?.find((s) => s.playerId === playerId);
 }
-
-export function hitRate(player: Player): number {
-  if (player.throws === 0) return 0;
-  return Math.round((player.hits / player.throws) * 100);
-}
-
-export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(iso));
-}
-
-export function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}

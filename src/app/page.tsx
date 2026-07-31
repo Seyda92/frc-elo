@@ -1,20 +1,23 @@
 import Link from "next/link";
 import {
-  club,
-  events,
-  formatDate,
-  formatDateTime,
-  getPlayer,
-  hitRate,
-  matches,
-  players,
-} from "@/data/dummy";
+  getFeaturedEvents,
+  getLeaderboard,
+  getPrimaryClub,
+  getRecentMatches,
+  getUpcomingMatches,
+} from "@/db/queries";
+import { formatDate, formatDateTime, hitRate } from "@/lib/format";
 
-export default function HomePage() {
-  const ranked = [...players].sort((a, b) => b.elo - a.elo);
-  const recent = matches.filter((m) => m.status === "played").slice(0, 3);
-  const upcoming = matches.filter((m) => m.status === "planned");
-  const featuredEvents = events.filter((e) => e.status !== "past");
+export default async function HomePage() {
+  const club = await getPrimaryClub();
+  const clubId = club ? Number(club.id) : undefined;
+
+  const [ranked, recent, upcoming, featuredEvents] = await Promise.all([
+    clubId != null ? getLeaderboard(clubId) : Promise.resolve([]),
+    getRecentMatches(3),
+    getUpcomingMatches(),
+    clubId != null ? getFeaturedEvents(clubId) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
@@ -47,7 +50,7 @@ export default function HomePage() {
               <h2 className="font-display text-2xl tracking-tight text-amber sm:text-3xl">
                 ELO-Tabelle
               </h2>
-              <p className="mt-1 text-sm text-foam-muted">{club.name}</p>
+              <p className="mt-1 text-sm text-foam-muted">{club?.name}</p>
             </div>
           </header>
 
@@ -71,7 +74,7 @@ export default function HomePage() {
                           {player.name}
                         </p>
                         <p className="text-sm text-foam-muted">
-                          #{player.number} · ELO {player.elo}
+                          {player.number != null ? `#${player.number} · ` : ""}ELO {player.elo}
                         </p>
                       </div>
                     </div>
@@ -116,13 +119,9 @@ export default function HomePage() {
                       {match.scoreLabel}
                     </p>
                     <p className="mt-2 text-sm text-foam-muted">
-                      {match.teamA
-                        .map((id) => getPlayer(id)?.name.split(" ")[0])
-                        .join(", ")}
+                      {match.teamA.map((p) => p.name.split(" ")[0]).join(", ")}
                       <span className="mx-2 font-display text-amber">VS</span>
-                      {match.teamB
-                        .map((id) => getPlayer(id)?.name.split(" ")[0])
-                        .join(", ")}
+                      {match.teamB.map((p) => p.name.split(" ")[0]).join(", ")}
                     </p>
                     <p className="mt-2 text-xs uppercase tracking-[0.14em] text-amber">
                       Spiel ansehen →
@@ -155,8 +154,8 @@ export default function HomePage() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-foam-muted">
-                    {formatDate(event.startsAt)}
-                    {event.endsAt !== event.startsAt
+                    {event.startsAt ? formatDate(event.startsAt) : "Termin offen"}
+                    {event.endsAt && event.endsAt !== event.startsAt
                       ? ` – ${formatDate(event.endsAt)}`
                       : ""}{" "}
                     · {event.location}
@@ -172,13 +171,9 @@ export default function HomePage() {
                     {match.scoreLabel}
                   </p>
                   <p className="mt-2 text-sm text-foam-muted">
-                    {match.teamA
-                      .map((id) => getPlayer(id)?.name.split(" ")[0])
-                      .join(", ")}
+                    {match.teamA.map((p) => p.name.split(" ")[0]).join(", ")}
                     <span className="mx-2 font-display text-amber">VS</span>
-                    {match.teamB
-                      .map((id) => getPlayer(id)?.name.split(" ")[0])
-                      .join(", ")}
+                    {match.teamB.map((p) => p.name.split(" ")[0]).join(", ")}
                   </p>
                 </li>
               ))}
@@ -186,9 +181,7 @@ export default function HomePage() {
           </section>
         </div>
 
-        <p className="text-center text-sm text-foam-muted">
-          Mockup · Dummy-Daten · {club.name}
-        </p>
+        <p className="text-center text-sm text-foam-muted">{club?.name}</p>
       </div>
     </div>
   );

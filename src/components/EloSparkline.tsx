@@ -1,7 +1,7 @@
-import type { Player } from "@/data/dummy";
+import type { EloPoint } from "@/lib/format";
 
 type Props = {
-  points: Player["eloHistory"];
+  points: EloPoint[];
   className?: string;
 };
 

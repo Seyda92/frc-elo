@@ -1,26 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EloSparkline } from "@/components/EloSparkline";
-import {
-  club,
-  formatDateTime,
-  getPlayer,
-  hitRate,
-  matches,
-  players,
-} from "@/data/dummy";
+import { getPlayerDetail, getPlayerRecentMatches, getPrimaryClub } from "@/db/queries";
+import { formatDateTime, hitRate } from "@/lib/format";
 
 type Props = {
   params: Promise<{ id: string }>;
 };
 
-export function generateStaticParams() {
-  return players.map((player) => ({ id: player.id }));
+function parseId(id: string): number | undefined {
+  const n = Number(id);
+  return Number.isInteger(n) ? n : undefined;
 }
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const player = getPlayer(id);
+  const numericId = parseId(id);
+  const player = numericId != null ? await getPlayerDetail(numericId) : undefined;
   return {
     title: player ? player.name : "Spieler",
   };
@@ -28,18 +24,17 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function PlayerPage({ params }: Props) {
   const { id } = await params;
-  const player = getPlayer(id);
+  const numericId = parseId(id);
+  if (numericId == null) notFound();
+
+  const [player, club, playerMatches] = await Promise.all([
+    getPlayerDetail(numericId),
+    getPrimaryClub(),
+    getPlayerRecentMatches(numericId, 4),
+  ]);
   if (!player) notFound();
 
   const rate = hitRate(player);
-  const playerMatches = matches
-    .filter(
-      (m) =>
-        m.status === "played" &&
-        (m.teamA.includes(player.id) || m.teamB.includes(player.id)),
-    )
-    .slice(0, 4);
-
   const eloDelta =
     player.eloHistory.length >= 2
       ? player.elo - player.eloHistory[0].elo
@@ -51,11 +46,11 @@ export default async function PlayerPage({ params }: Props) {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
           <div className="flex items-center gap-4">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center bg-rubber font-display text-2xl text-amber">
-              {player.number}
+              {player.number ?? "–"}
             </span>
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-amber">
-                Spielerprofil · {club.name.split(" ").slice(0, 2).join(" ")}
+                Spielerprofil{club ? ` · ${club.name.split(" ").slice(0, 2).join(" ")}` : ""}
               </p>
               <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
                 {player.name}
@@ -92,7 +87,7 @@ export default async function PlayerPage({ params }: Props) {
               {eloDelta} ELO seit Saisonstart
             </p>
           </header>
-          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 sm:p-4">
+          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:p-4">
             <StatCell
               label="Quote"
               value={`${rate}%`}
@@ -104,49 +99,19 @@ export default async function PlayerPage({ params }: Props) {
               value={`${player.wins}/${player.losses}`}
               hint={`${player.games} Spiele`}
             />
-            <StatCell
-              label="Verwarn."
-              value={player.warnings}
-              danger={player.warnings > 0}
-            />
           </div>
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-          <section className="border border-line bg-asphalt-raised/40">
-            <header className="border-b border-line px-4 py-4 sm:px-5">
-              <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
-                ELO-Verlauf
-              </h2>
-            </header>
-            <div className="p-4 sm:p-5">
-              <EloSparkline points={player.eloHistory} />
-            </div>
-          </section>
-
-          <section className="border border-line bg-asphalt-raised/40">
-            <header className="border-b border-line px-4 py-4 sm:px-5">
-              <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
-                Achievements
-              </h2>
-            </header>
-            <ul className="divide-y divide-line">
-              {player.achievements.map((a) => (
-                <li
-                  key={a}
-                  className="px-4 py-4 font-display text-xl uppercase tracking-wide text-amber sm:px-5 sm:text-2xl"
-                >
-                  {a}
-                </li>
-              ))}
-              <li className="px-4 py-4 text-sm text-foam-muted sm:px-5">
-                {player.warnings === 0
-                  ? "Saubere Weste – bisher keine Verwarnung."
-                  : `${player.warnings}× ermahnt. Fair Play hält den ELO-Wert stabil.`}
-              </li>
-            </ul>
-          </section>
-        </div>
+        <section className="border border-line bg-asphalt-raised/40">
+          <header className="border-b border-line px-4 py-4 sm:px-5">
+            <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
+              ELO-Verlauf
+            </h2>
+          </header>
+          <div className="p-4 sm:p-5">
+            <EloSparkline points={player.eloHistory} />
+          </div>
+        </section>
 
         <section className="border border-line bg-asphalt-raised/40">
           <header className="border-b border-line px-4 py-4 sm:px-5">
@@ -156,7 +121,7 @@ export default async function PlayerPage({ params }: Props) {
           </header>
           <ul className="divide-y divide-line">
             {playerMatches.map((match) => {
-              const onA = match.teamA.includes(player.id);
+              const onA = match.teamA.some((p) => p.id === player.id);
               const won =
                 (onA && match.winner === "A") || (!onA && match.winner === "B");
               return (
@@ -172,7 +137,7 @@ export default async function PlayerPage({ params }: Props) {
                       <p className="mt-1 font-display text-xl text-foam">
                         {onA ? "Team A" : "Team B"} ·{" "}
                         {(onA ? match.teamA : match.teamB)
-                          .map((pid) => getPlayer(pid)?.name.split(" ")[0])
+                          .map((p) => p.name.split(" ")[0])
                           .join(", ")}
                       </p>
                       <p className="mt-1 text-xs uppercase tracking-[0.14em] text-amber">
@@ -196,7 +161,7 @@ export default async function PlayerPage({ params }: Props) {
         </section>
 
         <p className="text-center text-sm text-foam-muted">
-          Mockup · Tippen aufs Leaderboard für andere Spieler
+          Tippen aufs Leaderboard für andere Spieler
         </p>
       </div>
     </div>
@@ -208,13 +173,11 @@ function StatCell({
   value,
   hint,
   highlight,
-  danger,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   highlight?: boolean;
-  danger?: boolean;
 }) {
   return (
     <div className="border border-line bg-asphalt/60 p-3">
@@ -223,7 +186,7 @@ function StatCell({
       </p>
       <p
         className={`mt-1 text-center font-display text-3xl ${
-          danger ? "text-clay" : highlight ? "text-amber" : "text-foam"
+          highlight ? "text-amber" : "text-foam"
         }`}
       >
         {value}

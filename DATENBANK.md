@@ -85,23 +85,23 @@ einem Turnier ins nächste mit — siehe
 -- ===========================================================================
 
 CREATE TABLE club (
-    club_id      INTEGER PRIMARY KEY,
+    club_id      INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name         TEXT NOT NULL,
     city         TEXT
 );
 
 CREATE TABLE player (
-    player_id     INTEGER PRIMARY KEY,
+    player_id     INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     club_id       INTEGER REFERENCES club(club_id),
-    display_name  TEXT    NOT NULL,
+    display_name  TEXT        NOT NULL,
     jersey_number INTEGER,                          -- Rückennummer
-    joined_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-    is_active     INTEGER NOT NULL DEFAULT 1,
+    joined_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_active     INTEGER     NOT NULL DEFAULT 1,
     UNIQUE (club_id, jersey_number)
 );
 
 CREATE TABLE app_user (
-    user_id       INTEGER PRIMARY KEY,
+    user_id       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role          TEXT NOT NULL DEFAULT 'user',     -- 'admin' | 'user'
@@ -110,10 +110,10 @@ CREATE TABLE app_user (
 );
 
 CREATE TABLE event (
-    event_id     INTEGER PRIMARY KEY,
+    event_id     INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name         TEXT NOT NULL,
-    starts_on    TEXT,                              -- Wochenende oder länger
-    ends_on      TEXT,
+    starts_on    DATE,                              -- Wochenende oder länger
+    ends_on      DATE,
     club_id      INTEGER REFERENCES club(club_id)
 );
 
@@ -125,47 +125,47 @@ CREATE TABLE event (
 -- Eine einzige Zeile ('v3'); Tabelle bleibt bestehen, falls spaeter doch
 -- eine zweite Variante noetig wird, erzwingt aber aktuell keine Auswahl.
 CREATE TABLE rating_model (
-    model_id            INTEGER PRIMARY KEY,
-    code                TEXT    NOT NULL UNIQUE DEFAULT 'v3',
-    description         TEXT    NOT NULL DEFAULT 'v3: nullsummen-neutral, Gleichverteilung P/n',
-    start_rating        REAL    NOT NULL DEFAULT 200,
-    size_factor_offset  REAL    NOT NULL DEFAULT 7.0,  -- c in (n+D)/(n+c)
-    is_zero_sum         INTEGER NOT NULL DEFAULT 1,
-    distribution        TEXT    NOT NULL DEFAULT 'equal',  -- v3 = Gleichverteilung P/n
-    provisional_games   INTEGER NOT NULL DEFAULT 15,
-    provisional_k_boost REAL    NOT NULL DEFAULT 3.0,
+    model_id            INTEGER       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    code                TEXT          NOT NULL UNIQUE DEFAULT 'v3',
+    description         TEXT          NOT NULL DEFAULT 'v3: nullsummen-neutral, Gleichverteilung P/n',
+    start_rating        NUMERIC(10,4) NOT NULL DEFAULT 200,
+    size_factor_offset  NUMERIC(10,4) NOT NULL DEFAULT 7.0,  -- c in (n+D)/(n+c)
+    is_zero_sum         INTEGER       NOT NULL DEFAULT 1,
+    distribution        TEXT          NOT NULL DEFAULT 'equal',  -- v3 = Gleichverteilung P/n
+    provisional_games   INTEGER       NOT NULL DEFAULT 15,
+    provisional_k_boost NUMERIC(10,4) NOT NULL DEFAULT 3.0,
     CHECK (code = 'v3')
 );
 
 -- Teamfaktor-Tabelle T (v3, gedaempft). Groessendifferenz bis 19 moeglich,
 -- da Teams jetzt 1..20 Spieler gross sein duerfen (>19 wird auf 19 gedeckelt).
 CREATE TABLE team_factor (
-    model_id  INTEGER NOT NULL REFERENCES rating_model(model_id),
-    size_diff INTEGER NOT NULL,                     -- 1..19 (>19 auf 19 gedeckelt)
-    factor    REAL    NOT NULL,
+    model_id  INTEGER       NOT NULL REFERENCES rating_model(model_id),
+    size_diff INTEGER       NOT NULL,                     -- 1..19 (>19 auf 19 gedeckelt)
+    factor    NUMERIC(10,6) NOT NULL,
     PRIMARY KEY (model_id, size_diff)
 );
 
 -- Match: ein gespieltes Spiel; speichert alle Eingangsgrößen zur Nachrechnung
 CREATE TABLE match (
-    match_id   INTEGER PRIMARY KEY,
-    event_id   INTEGER REFERENCES event(event_id),  -- Zuordnung Spieltag
-    played_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-    k_factor   INTEGER NOT NULL,                     -- K in {50,40,30,20}
-    can_diff   INTEGER NOT NULL DEFAULT 0,           -- D (Dosenunterschied, >=0)
+    match_id   INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id   INTEGER     REFERENCES event(event_id),  -- Zuordnung Spieltag
+    played_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    k_factor   INTEGER     NOT NULL,                     -- K in {50,40,30,20}
+    can_diff   INTEGER     NOT NULL DEFAULT 0,           -- D (Dosenunterschied, >=0)
     note       TEXT
 );
 
 -- Die zwei Seiten (Teams) eines Matches
 CREATE TABLE match_team (
-    match_team_id INTEGER PRIMARY KEY,
-    match_id      INTEGER NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
-    side          TEXT    NOT NULL,                  -- 'A' | 'B'
-    team_size     INTEGER NOT NULL,                  -- n, 1..20 Spieler
-    score         REAL    NOT NULL,                  -- S: 1 / 0.5 / 0
+    match_team_id INTEGER      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    match_id      INTEGER      NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
+    side          TEXT         NOT NULL,                  -- 'A' | 'B'
+    team_size     INTEGER      NOT NULL,                  -- n, 1..20 Spieler
+    score         NUMERIC(2,1) NOT NULL,                  -- S: 1 / 0 (kein Remis)
     UNIQUE (match_id, side),
     CHECK (side IN ('A','B')),
-    CHECK (score IN (0, 0.5, 1)),
+    CHECK (score IN (0, 1)),
     CHECK (team_size BETWEEN 1 AND 20)
 );
 
@@ -244,9 +244,9 @@ CREATE TRIGGER trg_participant_not_referee
 -- analog zu player_rating_current). Spart bei Ranglisten/Profilseiten das
 -- Zaehlen von match_referee bei jedem Aufruf.
 CREATE TABLE player_referee_stats (
-    player_id      INTEGER PRIMARY KEY REFERENCES player(player_id),
-    matches_reffed INTEGER NOT NULL DEFAULT 0,
-    updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    player_id      INTEGER     PRIMARY KEY REFERENCES player(player_id),
+    matches_reffed INTEGER     NOT NULL DEFAULT 0,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Haelt player_referee_stats automatisch synchron mit match_referee, egal ob
@@ -287,14 +287,14 @@ CREATE TRIGGER trg_sync_referee_stats
 -- ALLE Matches und Events hinweg. match.event_id ordnet nur zu, WELCHEM
 -- Turnier ein Match angehoerte; es startet keine neue Rating-Kette.
 CREATE TABLE rating_history (
-    history_id     INTEGER PRIMARY KEY,
-    match_id       INTEGER NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
-    player_id      INTEGER NOT NULL REFERENCES player(player_id),
-    model_id       INTEGER NOT NULL REFERENCES rating_model(model_id),  -- immer 'v3'
-    rating_before  REAL    NOT NULL,
-    delta          REAL    NOT NULL,                 -- dR_i
-    rating_after   REAL    NOT NULL,
-    games_played   INTEGER NOT NULL,                 -- g VOR diesem Match (ueber alle Turniere gezaehlt)
+    history_id     INTEGER       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    match_id       INTEGER       NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
+    player_id      INTEGER       NOT NULL REFERENCES player(player_id),
+    model_id       INTEGER       NOT NULL REFERENCES rating_model(model_id),  -- immer 'v3'
+    rating_before  NUMERIC(10,4) NOT NULL,
+    delta          NUMERIC(10,4) NOT NULL,                 -- dR_i
+    rating_after   NUMERIC(10,4) NOT NULL,
+    games_played   INTEGER       NOT NULL,                 -- g VOR diesem Match (ueber alle Turniere gezaehlt)
     UNIQUE (match_id, player_id, model_id)
 );
 
@@ -303,14 +303,14 @@ CREATE TABLE rating_history (
 -- Turnieruebergreifenden Mitnahme: player_rating_current.rating ist immer
 -- der neueste rating_after-Wert ueber die gesamte Karriere des Spielers.
 CREATE TABLE player_rating_current (
-    player_id     INTEGER NOT NULL REFERENCES player(player_id),
-    model_id      INTEGER NOT NULL REFERENCES rating_model(model_id),  -- immer 'v3'
-    rating        REAL    NOT NULL,
-    games_played  INTEGER NOT NULL DEFAULT 0,
-    wins          INTEGER NOT NULL DEFAULT 0,        -- Statistik (elo-app.md)
-    losses        INTEGER NOT NULL DEFAULT 0,
-    draws         INTEGER NOT NULL DEFAULT 0,
-    updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    player_id     INTEGER       NOT NULL REFERENCES player(player_id),
+    model_id      INTEGER       NOT NULL REFERENCES rating_model(model_id),  -- immer 'v3'
+    rating        NUMERIC(10,4) NOT NULL,
+    games_played  INTEGER       NOT NULL DEFAULT 0,
+    wins          INTEGER       NOT NULL DEFAULT 0,        -- Statistik (elo-app.md)
+    losses        INTEGER       NOT NULL DEFAULT 0,
+    draws         INTEGER       NOT NULL DEFAULT 0,
+    updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
     PRIMARY KEY (player_id, model_id)
 );
 
