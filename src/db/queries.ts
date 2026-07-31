@@ -8,9 +8,12 @@ import {
   matchTeam,
   player,
   playerRatingCurrent,
+  ratingModel,
   ratingHistory,
+  teamFactor,
 } from "./generated/schema";
 import { initials, type EloPoint } from "@/lib/format";
+import type { EloParams } from "@/lib/elo";
 import type {
   Club,
   EventSummary,
@@ -50,6 +53,95 @@ export async function getPrimaryClub(): Promise<Club | undefined> {
   const [row] = await db.select().from(club).orderBy(asc(club.clubId)).limit(1);
   if (!row) return undefined;
   return { id: String(row.clubId), name: row.name, location: row.city ?? row.name };
+}
+
+export async function getClubs(): Promise<Club[]> {
+  const rows = await db.select().from(club).orderBy(asc(club.name));
+  return rows.map((row) => ({
+    id: String(row.clubId),
+    name: row.name,
+    location: row.city ?? "",
+  }));
+}
+
+export async function getAllPlayers(): Promise<
+  { id: string; name: string; number: number | null; clubName: string }[]
+> {
+  const rows = await db
+    .select({
+      playerId: player.playerId,
+      name: player.displayName,
+      number: player.jerseyNumber,
+      clubName: club.name,
+    })
+    .from(player)
+    .leftJoin(club, eq(club.clubId, player.clubId))
+    .orderBy(asc(player.displayName));
+
+  return rows.map((row) => ({
+    id: String(row.playerId),
+    name: row.name,
+    number: row.number,
+    clubName: row.clubName ?? "—",
+  }));
+}
+
+export async function getAllEvents(): Promise<EventSummary[]> {
+  const rows = await db
+    .select({
+      eventId: event.eventId,
+      name: event.name,
+      startsOn: event.startsOn,
+      endsOn: event.endsOn,
+      clubName: club.name,
+      clubCity: club.city,
+    })
+    .from(event)
+    .leftJoin(club, eq(club.clubId, event.clubId))
+    .orderBy(desc(event.startsOn));
+
+  return rows.map((row) => {
+    const startsAt = toDateOnlyString(row.startsOn);
+    const endsAt = toDateOnlyString(row.endsOn);
+    return {
+      id: String(row.eventId),
+      name: row.name,
+      location: row.clubCity ?? row.clubName ?? "",
+      startsAt,
+      endsAt,
+      status: deriveEventStatus(startsAt, endsAt),
+    } satisfies EventSummary;
+  });
+}
+
+/** Startwertung für neu angelegte Spieler (aus `rating_model`). */
+export async function getStartRating(): Promise<number> {
+  const [row] = await db
+    .select({ startRating: ratingModel.startRating })
+    .from(ratingModel)
+    .where(eq(ratingModel.modelId, V3_MODEL_ID));
+  return row ? Number(row.startRating) : 200;
+}
+
+/** Modellparameter für die v3-Berechnung in `src/lib/elo.ts`. */
+export async function getEloParams(): Promise<EloParams> {
+  const [model] = await db
+    .select()
+    .from(ratingModel)
+    .where(eq(ratingModel.modelId, V3_MODEL_ID));
+  if (!model) throw new Error(`rating_model mit model_id ${V3_MODEL_ID} fehlt`);
+
+  const factors = await db
+    .select({ sizeDiff: teamFactor.sizeDiff, factor: teamFactor.factor })
+    .from(teamFactor)
+    .where(eq(teamFactor.modelId, V3_MODEL_ID));
+
+  return {
+    sizeFactorOffset: Number(model.sizeFactorOffset),
+    provisionalGames: model.provisionalGames,
+    provisionalKBoost: Number(model.provisionalKBoost),
+    teamFactors: new Map(factors.map((f) => [f.sizeDiff, Number(f.factor)])),
+  };
 }
 
 export async function getLeaderboard(clubId: number): Promise<Player[]> {

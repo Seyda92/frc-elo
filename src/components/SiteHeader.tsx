@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const links = [
   { href: "/", label: "Leaderboard" },
   { href: "/live", label: "Live" },
+  { href: "/admin", label: "Admin" },
 ];
 
 export function SiteHeader() {
@@ -28,7 +29,9 @@ export function SiteHeader() {
             const active =
               link.href === "/"
                 ? pathname === "/" || pathname.startsWith("/spieler")
-                : pathname === link.href;
+                : link.href === "/admin"
+                  ? pathname.startsWith("/admin")
+                  : pathname === link.href;
             return (
               <Link
                 key={link.href}
