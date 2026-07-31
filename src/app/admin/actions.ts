@@ -4,23 +4,22 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { club, event, player, playerRatingCurrent } from "@/db/generated/schema";
 import { getStartRating } from "@/db/queries";
-
-/**
- * ACHTUNG: Diese Actions schreiben ohne jede Zugriffsprüfung. Das ist nur
- * vertretbar, solange die App ausschließlich lokal läuft. Vor einem
- * Deployment muss Login/Auth davor — sonst kann jeder Besucher Daten anlegen.
- */
+import { getAdminSession } from "@/lib/auth";
+import type { ActionResult } from "@/lib/action-result";
+import { isUniqueViolation } from "@/lib/pg-errors";
 
 const V3_MODEL_ID = 1;
 
-export type ActionResult =
-  | { ok: true; message: string }
-  | { ok: false; error: string };
-
-/** Postgres-Fehler tragen den SQLSTATE in `code`. */
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
-}
+/**
+ * Das Admin-Layout schützt nur das ANSEHEN — eine Server Action ist ein
+ * eigenständig adressierbarer POST-Endpunkt und wird über ihre Action-ID
+ * angesprochen, ohne dass das Layout dabei je gerendert wird. Jede Action
+ * muss die Session deshalb selbst prüfen.
+ */
+const NOT_AUTHENTICATED: ActionResult = {
+  ok: false,
+  error: "Nicht angemeldet. Bitte neu einloggen.",
+};
 
 function requiredText(formData: FormData, field: string): string | null {
   const value = formData.get(field);
@@ -56,6 +55,8 @@ export async function createClub(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
   const name = requiredText(formData, "name");
   if (!name) return { ok: false, error: "Name ist ein Pflichtfeld." };
 
@@ -81,6 +82,8 @@ export async function createPlayer(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
   const displayName = requiredText(formData, "display_name");
   if (!displayName) return { ok: false, error: "Name ist ein Pflichtfeld." };
 
@@ -133,6 +136,8 @@ export async function createEvent(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
   const name = requiredText(formData, "name");
   if (!name) return { ok: false, error: "Name ist ein Pflichtfeld." };
 

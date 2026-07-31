@@ -221,7 +221,7 @@ function TeamPanel({
                   onDec={() => onChange(team, row.playerId, "hits", -1)}
                 />
                 <StatControl
-                  label="Bier"
+                  label="Bonusbiere"
                   value={row.bonusBeers}
                   onInc={() => onChange(team, row.playerId, "bonusBeers", 1)}
                   onDec={() => onChange(team, row.playerId, "bonusBeers", -1)}

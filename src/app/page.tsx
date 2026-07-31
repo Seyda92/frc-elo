@@ -85,7 +85,7 @@ export default async function HomePage() {
 
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <StatCell label="Quote" value={`${hitRate(player)}%`} />
-                    <StatCell label="Bier" value={player.bonusBeers} highlight />
+                    <StatCell label="Bonusbiere" value={player.bonusBeers} highlight />
                     <StatCell label="Spiele" value={player.games} />
                     <StatCell
                       label="W / L"

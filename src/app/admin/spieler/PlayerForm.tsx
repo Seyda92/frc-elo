@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { createPlayer, type ActionResult } from "@/app/admin/actions";
+import { createPlayer } from "@/app/admin/actions";
+import type { ActionResult } from "@/lib/action-result";
 import { Field, FormStatus, SelectField, SubmitButton } from "@/components/form";
 
 export function PlayerForm({ clubs }: { clubs: { id: string; name: string }[] }) {

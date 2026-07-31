@@ -190,7 +190,7 @@ function StatGrid({ stats }: { stats: MatchPlayerStat }) {
     <div className="grid grid-cols-3 gap-2">
       <StatCell label="Würfe" value={stats.throws} />
       <StatCell label="Treffer" value={stats.hits} highlight />
-      <StatCell label="Bier" value={stats.bonusBeers} />
+      <StatCell label="Bonusbiere" value={stats.bonusBeers} />
     </div>
   );
 }

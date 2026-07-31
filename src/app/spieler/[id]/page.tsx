@@ -93,7 +93,7 @@ export default async function PlayerPage({ params }: Props) {
               value={`${rate}%`}
               hint={`${player.hits}/${player.throws}`}
             />
-            <StatCell label="Bier" value={player.bonusBeers} highlight />
+            <StatCell label="Bonusbiere" value={player.bonusBeers} highlight />
             <StatCell
               label="W / L"
               value={`${player.wins}/${player.losses}`}

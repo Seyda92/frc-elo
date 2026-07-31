@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { createEvent, type ActionResult } from "@/app/admin/actions";
+import { createEvent } from "@/app/admin/actions";
+import type { ActionResult } from "@/lib/action-result";
 import { Field, FormStatus, SelectField, SubmitButton } from "@/components/form";
 
 export function EventForm({ clubs }: { clubs: { id: string; name: string }[] }) {

@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/login/actions";
 
-const links = [
+const publicLinks = [
   { href: "/", label: "Leaderboard" },
   { href: "/live", label: "Live" },
-  { href: "/admin", label: "Admin" },
 ];
 
-export function SiteHeader() {
+type User = { username: string; role: "admin" | "user" };
+
+export function SiteHeader({ user }: { user: User | null }) {
   const pathname = usePathname();
+  const links =
+    user?.role === "admin" ? [...publicLinks, { href: "/admin", label: "Admin" }] : publicLinks;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-asphalt/95 backdrop-blur-md">
@@ -46,6 +50,29 @@ export function SiteHeader() {
               </Link>
             );
           })}
+
+          {user ? (
+            <>
+              <span className="hidden px-2 text-xs uppercase tracking-[0.14em] text-foam-muted sm:inline">
+                {user.username}
+              </span>
+              <form action={logout}>
+                <button
+                  type="submit"
+                  className="min-h-10 border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber sm:px-4"
+                >
+                  Logout
+                </button>
+              </form>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="min-h-10 border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber sm:px-4"
+            >
+              Login
+            </Link>
+          )}
         </nav>
       </div>
     </header>

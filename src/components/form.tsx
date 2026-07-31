@@ -1,4 +1,4 @@
-import type { ActionResult } from "@/app/admin/actions";
+import type { ActionResult } from "@/lib/action-result";
 
 /**
  * Formular-Bausteine in der Designsprache der App: alles eckig, Rahmen in
@@ -16,13 +16,15 @@ export function Field({
   required,
   placeholder,
   min,
+  autoComplete,
 }: {
   label: string;
   name: string;
-  type?: "text" | "number" | "date";
+  type?: "text" | "number" | "date" | "password";
   required?: boolean;
   placeholder?: string;
   min?: number;
+  autoComplete?: string;
 }) {
   return (
     <label className="block">
@@ -37,6 +39,7 @@ export function Field({
         required={required}
         placeholder={placeholder}
         min={min}
+        autoComplete={autoComplete}
       />
     </label>
   );
@@ -73,9 +76,11 @@ export function SelectField({
 
 export function SubmitButton({
   pending,
+  pendingLabel = "Speichert…",
   children,
 }: {
   pending: boolean;
+  pendingLabel?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -84,7 +89,7 @@ export function SubmitButton({
       disabled={pending}
       className="min-h-12 bg-amber px-5 py-3 font-display uppercase tracking-wide text-asphalt transition hover:bg-amber-hot disabled:opacity-50"
     >
-      {pending ? "Speichert…" : children}
+      {pending ? pendingLabel : children}
     </button>
   );
 }

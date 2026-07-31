@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { createClub, type ActionResult } from "@/app/admin/actions";
+import { createClub } from "@/app/admin/actions";
+import type { ActionResult } from "@/lib/action-result";
 import { Field, FormStatus, SubmitButton } from "@/components/form";
 
 export function ClubForm() {

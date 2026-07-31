@@ -1,12 +1,12 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "./generated/schema";
+import * as schema from "./generated/schema.ts";
 
 declare global {
   var __pgPool: Pool | undefined;
 }
 
-const pool =
+export const pool =
   global.__pgPool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
