@@ -1,19 +1,21 @@
 import Link from "next/link";
-import { getAllEvents, getAllPlayers, getClubs } from "@/db/queries";
+import { getAllEvents, getAllPlayers, getClubs, getMatchCount } from "@/db/queries";
 
 export const metadata = { title: "Admin" };
 
 export default async function AdminPage() {
-  const [clubs, players, events] = await Promise.all([
+  const [clubs, players, events, matchCount] = await Promise.all([
     getClubs(),
     getAllPlayers(),
     getAllEvents(),
+    getMatchCount(),
   ]);
 
   const sections = [
     { href: "/admin/vereine", label: "Vereine", count: clubs.length },
     { href: "/admin/spieler", label: "Spieler", count: players.length },
     { href: "/admin/events", label: "Events", count: events.length },
+    { href: "/admin/spiele", label: "Spiele", count: matchCount },
   ];
 
   return (
@@ -25,13 +27,13 @@ export default async function AdminPage() {
             Admin
           </h1>
           <p className="mt-1 text-sm text-foam-muted">
-            Stammdaten anlegen. Matches werden noch nicht hier erfasst.
+            Stammdaten pflegen und gespielte Matches erfassen.
           </p>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
-        <ul className="grid gap-4 sm:grid-cols-3 lg:gap-6">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
           {sections.map((section) => (
             <li key={section.href}>
               <Link

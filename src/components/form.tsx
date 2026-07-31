@@ -16,14 +16,18 @@ export function Field({
   required,
   placeholder,
   min,
+  max,
+  defaultValue,
   autoComplete,
 }: {
   label: string;
   name: string;
-  type?: "text" | "number" | "date" | "password";
+  type?: "text" | "number" | "date" | "datetime-local" | "password";
   required?: boolean;
   placeholder?: string;
   min?: number;
+  max?: number | string;
+  defaultValue?: string;
   autoComplete?: string;
 }) {
   return (
@@ -39,6 +43,8 @@ export function Field({
         required={required}
         placeholder={placeholder}
         min={min}
+        max={max}
+        defaultValue={defaultValue}
         autoComplete={autoComplete}
       />
     </label>

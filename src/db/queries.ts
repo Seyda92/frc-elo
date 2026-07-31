@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
-import { db } from "./client";
+import { db } from "./client.ts";
 import {
   club,
   event,
@@ -11,9 +11,10 @@ import {
   ratingModel,
   ratingHistory,
   teamFactor,
-} from "./generated/schema";
+} from "./generated/schema.ts";
 import { initials, type EloPoint } from "@/lib/format";
 import type { EloParams } from "@/lib/elo";
+import { V3_MODEL_ID } from "./model.ts";
 import type {
   Club,
   EventSummary,
@@ -23,8 +24,6 @@ import type {
   Player,
   TeamMember,
 } from "./types";
-
-const V3_MODEL_ID = 1;
 
 function toDateOnlyString(value: string | Date | null): string | null {
   if (value == null) return null;
@@ -142,6 +141,56 @@ export async function getEloParams(): Promise<EloParams> {
     provisionalKBoost: Number(model.provisionalKBoost),
     teamFactors: new Map(factors.map((f) => [f.sizeDiff, Number(f.factor)])),
   };
+}
+
+export type MatchEntryPlayer = {
+  /** number, nicht string — geht direkt in EloPlayerInput/validateMatchInput */
+  playerId: number;
+  name: string;
+  jerseyNumber: number | null;
+  clubName: string;
+  /** Nur für die Anzeige im Formular — die Action liest die maßgeblichen
+   *  Werte innerhalb der Transaktion neu (siehe recordMatch). */
+  rating: number;
+  gamesPlayed: number;
+};
+
+/** Aktive Spieler für die Match-Erfassung, inkl. aktueller Wertung. */
+export async function getPlayersForMatchEntry(): Promise<MatchEntryPlayer[]> {
+  const rows = await db
+    .select({
+      playerId: player.playerId,
+      name: player.displayName,
+      jerseyNumber: player.jerseyNumber,
+      clubName: club.name,
+      rating: playerRatingCurrent.rating,
+      gamesPlayed: playerRatingCurrent.gamesPlayed,
+    })
+    .from(player)
+    .leftJoin(club, eq(club.clubId, player.clubId))
+    .leftJoin(
+      playerRatingCurrent,
+      and(
+        eq(playerRatingCurrent.playerId, player.playerId),
+        eq(playerRatingCurrent.modelId, V3_MODEL_ID),
+      ),
+    )
+    .where(eq(player.isActive, 1))
+    .orderBy(asc(club.name), asc(player.displayName));
+
+  return rows.map((row) => ({
+    playerId: row.playerId,
+    name: row.name,
+    jerseyNumber: row.jerseyNumber,
+    clubName: row.clubName ?? "—",
+    rating: row.rating != null ? Math.round(Number(row.rating)) : 200,
+    gamesPlayed: row.gamesPlayed ?? 0,
+  }));
+}
+
+export async function getMatchCount(): Promise<number> {
+  const [row] = await db.select({ count: sql<string>`count(*)` }).from(match);
+  return row ? Number(row.count) : 0;
 }
 
 export async function getLeaderboard(clubId: number): Promise<Player[]> {

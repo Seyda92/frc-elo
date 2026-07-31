@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { getPlayer, liveMatch, type LivePlayerStats } from "@/data/dummy";
+import { StatControl } from "@/components/StatControl";
+import { WinnerButton } from "@/components/WinnerButton";
 
 type TeamKey = "A" | "B";
 
@@ -113,30 +115,6 @@ export default function LivePage() {
   );
 }
 
-function WinnerButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`min-h-14 min-w-[10rem] px-5 py-3 font-display text-lg uppercase tracking-wide transition ${
-        active
-          ? "bg-amber text-asphalt"
-          : "border border-line bg-rubber/40 text-foam hover:border-amber"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
 function TeamPanel({
   title,
   accent,
@@ -239,58 +217,5 @@ function TeamPanel({
         })}
       </ul>
     </section>
-  );
-}
-
-function StatControl({
-  label,
-  value,
-  onInc,
-  onDec,
-  highlight,
-  danger,
-}: {
-  label: string;
-  value: number;
-  onInc: () => void;
-  onDec: () => void;
-  highlight?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <div className="border border-line bg-asphalt/60 p-2">
-      <p className="text-center text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
-        {label}
-      </p>
-      <div className="mt-1 flex items-center justify-between gap-1">
-        <button
-          type="button"
-          onClick={onDec}
-          className="flex h-11 w-11 items-center justify-center bg-rubber text-xl text-foam-muted transition hover:text-foam"
-          aria-label={`${label} verringern`}
-        >
-          −
-        </button>
-        <span
-          className={`min-w-8 text-center font-display text-2xl ${
-            danger
-              ? "text-clay"
-              : highlight
-                ? "text-amber"
-                : "text-foam"
-          }`}
-        >
-          {value}
-        </span>
-        <button
-          type="button"
-          onClick={onInc}
-          className="flex h-11 w-11 items-center justify-center bg-rubber text-xl text-foam transition hover:bg-amber hover:text-asphalt"
-          aria-label={`${label} erhöhen`}
-        >
-          +
-        </button>
-      </div>
-    </div>
   );
 }
