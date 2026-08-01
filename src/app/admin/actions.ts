@@ -1,13 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import type { PgTransaction } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
   club,
   event,
   match,
   matchParticipation,
+  matchPlannedRoster,
   matchReferee,
   matchTeam,
   player,
@@ -17,8 +20,14 @@ import {
 import { getEloParams, getPlayersForMatchEntry, getStartRating } from "@/db/queries";
 import { V3_MODEL_ID } from "@/db/model";
 import { getAdminSession } from "@/lib/auth";
-import { computeMatchDeltas } from "@/lib/elo";
-import { deriveRatingUpdates, validateMatchInput } from "@/lib/match-input";
+import { computeMatchDeltas, type EloParams } from "@/lib/elo";
+import {
+  deriveRatingUpdates,
+  deriveTeamScores,
+  validatePlannedMatchInput,
+  validateScoringInput,
+  type NormalizedRow,
+} from "@/lib/match-input";
 import type { ActionResult } from "@/lib/action-result";
 import {
   isCheckViolation,
@@ -26,6 +35,9 @@ import {
   isTriggerException,
   isUniqueViolation,
 } from "@/lib/pg-errors";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle-Transaktionstyp ist generisch über Schema/Query-Client, hier reicht "irgendeine tx".
+type Tx = PgTransaction<any, any, any>;
 
 /**
  * Das Admin-Layout schützt nur das ANSEHEN — eine Server Action ist ein
@@ -181,7 +193,185 @@ export async function createEvent(
   return { ok: true, message: `Event „${name}" angelegt.` };
 }
 
-export async function recordMatch(
+/**
+ * Elo-kritischer Kern, gemeinsam für "sofort erfassen" (historisch) und
+ * "geplantes Match bewerten": sperrt die Ausgangswertungen, legt match_team +
+ * match_participation an, berechnet die v3-Wertung und schreibt
+ * rating_history/player_rating_current fort. matchId muss bereits existieren
+ * (die match-Zeile selbst legt der jeweilige Aufrufer an, je nachdem ob das
+ * beim Anlegen oder erst beim Bewerten passiert).
+ */
+async function applyEloAndPersist(
+  tx: Tx,
+  matchId: number,
+  input: {
+    teamA: NormalizedRow[];
+    teamB: NormalizedRow[];
+    kFactor: 50 | 40 | 30 | 20;
+    canDiff: number;
+    winner: "A" | "B";
+  },
+  params: EloParams,
+): Promise<{ eloResult: ReturnType<typeof computeMatchDeltas>; teamAIds: number[] }> {
+  const teamAIds = input.teamA.map((r) => r.playerId);
+  const teamBIds = input.teamB.map((r) => r.playerId);
+  const allPlayerIds = [...teamAIds, ...teamBIds].sort((a, b) => a - b);
+
+  // 0. Wertungen sperren (Ausgangspunkt für computeMatchDeltas), sortiert
+  //    nach player_id gegen Deadlocks bei überlappenden Kadern. Kein
+  //    Join: FOR UPDATE auf der nullable Seite eines LEFT JOIN lehnt
+  //    Postgres ab, und ein Join würde zusätzlich player sperren.
+  const lockedRows = await tx
+    .select({
+      playerId: playerRatingCurrent.playerId,
+      rating: playerRatingCurrent.rating,
+      gamesPlayed: playerRatingCurrent.gamesPlayed,
+      wins: playerRatingCurrent.wins,
+      losses: playerRatingCurrent.losses,
+    })
+    .from(playerRatingCurrent)
+    .where(
+      and(
+        inArray(playerRatingCurrent.playerId, allPlayerIds),
+        eq(playerRatingCurrent.modelId, V3_MODEL_ID),
+      ),
+    )
+    .orderBy(asc(playerRatingCurrent.playerId))
+    .for("update");
+
+  const ratingByPlayer = new Map(lockedRows.map((r) => [r.playerId, r]));
+
+  // Selbstheilung: Spieler ohne player_rating_current-Zeile (z. B. per
+  // Hand-SQL angelegt) bekommen sie jetzt mit Startwertung, statt das
+  // Match abzulehnen oder eine NaN in die Berechnung zu schleusen.
+  const missingIds = allPlayerIds.filter((id) => !ratingByPlayer.has(id));
+  if (missingIds.length > 0) {
+    const startRating = await getStartRating();
+    const inserted = await tx
+      .insert(playerRatingCurrent)
+      .values(
+        missingIds.map((playerId) => ({
+          playerId,
+          modelId: V3_MODEL_ID,
+          rating: startRating.toFixed(4),
+          gamesPlayed: 0,
+          wins: 0,
+          losses: 0,
+          draws: 0,
+        })),
+      )
+      .returning({
+        playerId: playerRatingCurrent.playerId,
+        rating: playerRatingCurrent.rating,
+        gamesPlayed: playerRatingCurrent.gamesPlayed,
+        wins: playerRatingCurrent.wins,
+        losses: playerRatingCurrent.losses,
+      });
+    for (const row of inserted) ratingByPlayer.set(row.playerId, row);
+  }
+
+  const buildEloInput = (playerId: number, bonusBeer: number) => {
+    const row = ratingByPlayer.get(playerId)!;
+    return {
+      playerId,
+      rating: Number(row.rating),
+      bonusBeer,
+      gamesPlayed: row.gamesPlayed,
+    };
+  };
+  const eloTeamA = input.teamA.map((r) => buildEloInput(r.playerId, r.bonusBeer));
+  const eloTeamB = input.teamB.map((r) => buildEloInput(r.playerId, r.bonusBeer));
+
+  // 1. Match-Team-Zeilen — team_size kommt aus der Kaderlänge, nie aus
+  //    einem Formularfeld, damit die Spalte nie davon abweichen kann.
+  const { scoreA, scoreB } = deriveTeamScores(input.winner);
+  const [teamARow] = await tx
+    .insert(matchTeam)
+    .values({ matchId, side: "A", teamSize: input.teamA.length, score: scoreA })
+    .returning({ matchTeamId: matchTeam.matchTeamId });
+  const [teamBRow] = await tx
+    .insert(matchTeam)
+    .values({ matchId, side: "B", teamSize: input.teamB.length, score: scoreB })
+    .returning({ matchTeamId: matchTeam.matchTeamId });
+
+  // 2. Teilnahmen
+  await tx.insert(matchParticipation).values([
+    ...input.teamA.map((r) => ({
+      matchTeamId: teamARow.matchTeamId,
+      playerId: r.playerId,
+      bonusBeer: r.bonusBeer,
+      throws: r.throws,
+      hits: r.hits,
+    })),
+    ...input.teamB.map((r) => ({
+      matchTeamId: teamBRow.matchTeamId,
+      playerId: r.playerId,
+      bonusBeer: r.bonusBeer,
+      throws: r.throws,
+      hits: r.hits,
+    })),
+  ]);
+
+  // 3. v3-Berechnung — rein, kein DB-Zugriff.
+  const eloResult = computeMatchDeltas(
+    eloTeamA,
+    eloTeamB,
+    input.kFactor,
+    input.canDiff,
+    input.winner === "A" ? 1 : 0,
+    params,
+  );
+
+  // 4. rating_history (append-only Wahrheit)
+  await tx.insert(ratingHistory).values(
+    eloResult.players.map((p) => ({
+      matchId,
+      playerId: p.playerId,
+      modelId: V3_MODEL_ID,
+      ratingBefore: p.ratingBefore.toFixed(4),
+      delta: p.delta.toFixed(4),
+      ratingAfter: p.ratingAfter.toFixed(4),
+      gamesPlayed: p.gamesPlayed,
+    })),
+  );
+
+  // 5. player_rating_current fortschreiben — updated_at hat nur bei
+  //    INSERT einen Default, bei UPDATE muss es explizit gesetzt werden.
+  const before = new Map(
+    Array.from(ratingByPlayer.entries()).map(([id, r]) => [
+      id,
+      { gamesPlayed: r.gamesPlayed, wins: r.wins, losses: r.losses },
+    ]),
+  );
+  const updates = deriveRatingUpdates(eloResult, before, input.winner, teamAIds);
+  for (const u of updates) {
+    await tx
+      .update(playerRatingCurrent)
+      .set({
+        rating: u.rating,
+        gamesPlayed: u.gamesPlayed,
+        wins: u.wins,
+        losses: u.losses,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(playerRatingCurrent.playerId, u.playerId),
+          eq(playerRatingCurrent.modelId, V3_MODEL_ID),
+        ),
+      );
+  }
+
+  return { eloResult, teamAIds };
+}
+
+/**
+ * Schritt 1 des Zwei-Schritt-Ablaufs: Teams zusammenstellen und als
+ * "geplant" speichern — noch kein Ergebnis, keine Elo-Berechnung. Ein
+ * geplantes Match ist eine match-Zeile ohne match_team-Zeilen, mit dem
+ * Kader stattdessen in match_planned_roster (siehe migrations/0001).
+ */
+export async function createPlannedMatch(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
@@ -200,208 +390,158 @@ export async function recordMatch(
   const players = await getPlayersForMatchEntry();
   const knownPlayers = new Map(players.map((p) => [p.playerId, p.name]));
 
-  const validated = validateMatchInput(parsed, knownPlayers, new Date());
+  const validated = validatePlannedMatchInput(parsed, knownPlayers, new Date());
   if (!validated.ok) return { ok: false, error: validated.error };
   const input = validated.value;
 
-  const params = await getEloParams();
-
-  const teamAIds = input.teamA.map((r) => r.playerId);
-  const teamBIds = input.teamB.map((r) => r.playerId);
-  const allPlayerIds = [...teamAIds, ...teamBIds].sort((a, b) => a - b);
-
-  let summaryMessage = "";
+  let matchId: number;
 
   try {
-    await db.transaction(async (tx) => {
-      // 0. Wertungen sperren (Ausgangspunkt für computeMatchDeltas), sortiert
-      //    nach player_id gegen Deadlocks bei überlappenden Kadern. Kein
-      //    Join: FOR UPDATE auf der nullable Seite eines LEFT JOIN lehnt
-      //    Postgres ab, und ein Join würde zusätzlich player sperren.
-      const lockedRows = await tx
-        .select({
-          playerId: playerRatingCurrent.playerId,
-          rating: playerRatingCurrent.rating,
-          gamesPlayed: playerRatingCurrent.gamesPlayed,
-          wins: playerRatingCurrent.wins,
-          losses: playerRatingCurrent.losses,
-        })
-        .from(playerRatingCurrent)
-        .where(
-          and(
-            inArray(playerRatingCurrent.playerId, allPlayerIds),
-            eq(playerRatingCurrent.modelId, V3_MODEL_ID),
-          ),
-        )
-        .orderBy(asc(playerRatingCurrent.playerId))
-        .for("update");
-
-      const ratingByPlayer = new Map(lockedRows.map((r) => [r.playerId, r]));
-
-      // Selbstheilung: Spieler ohne player_rating_current-Zeile (z. B. per
-      // Hand-SQL angelegt) bekommen sie jetzt mit Startwertung, statt das
-      // Match abzulehnen oder eine NaN in die Berechnung zu schleusen.
-      const missingIds = allPlayerIds.filter((id) => !ratingByPlayer.has(id));
-      if (missingIds.length > 0) {
-        const startRating = await getStartRating();
-        const inserted = await tx
-          .insert(playerRatingCurrent)
-          .values(
-            missingIds.map((playerId) => ({
-              playerId,
-              modelId: V3_MODEL_ID,
-              rating: startRating.toFixed(4),
-              gamesPlayed: 0,
-              wins: 0,
-              losses: 0,
-              draws: 0,
-            })),
-          )
-          .returning({
-            playerId: playerRatingCurrent.playerId,
-            rating: playerRatingCurrent.rating,
-            gamesPlayed: playerRatingCurrent.gamesPlayed,
-            wins: playerRatingCurrent.wins,
-            losses: playerRatingCurrent.losses,
-          });
-        for (const row of inserted) ratingByPlayer.set(row.playerId, row);
-      }
-
-      const buildEloInput = (playerId: number, bonusBeer: number) => {
-        const row = ratingByPlayer.get(playerId)!;
-        return {
-          playerId,
-          rating: Number(row.rating),
-          bonusBeer,
-          gamesPlayed: row.gamesPlayed,
-        };
-      };
-      const eloTeamA = input.teamA.map((r) => buildEloInput(r.playerId, r.bonusBeer));
-      const eloTeamB = input.teamB.map((r) => buildEloInput(r.playerId, r.bonusBeer));
-
-      // 1. Match
+    matchId = await db.transaction(async (tx) => {
       const [insertedMatch] = await tx
         .insert(match)
         .values({
           eventId: input.eventId,
           playedAt: input.playedAt.toISOString(),
           kFactor: input.kFactor,
-          canDiff: input.canDiff,
-          note: input.note,
+          // Dosenunterschied wird beim Anlegen nicht erfasst (siehe
+          // validatePlannedMatchInput), bleibt beim Schema-Default 0. note
+          // wird erst beim Bewerten gesetzt (siehe scoreMatch), wenn das
+          // Spiel beendet ist.
+          name: input.name,
         })
         .returning({ matchId: match.matchId });
-      const matchId = insertedMatch.matchId;
+      const newMatchId = insertedMatch.matchId;
 
-      // 2. Match-Team-Zeilen — team_size kommt aus der Kaderlänge, nie aus
-      //    einem Formularfeld, damit die Spalte nie davon abweichen kann.
-      const [teamARow] = await tx
-        .insert(matchTeam)
-        .values({
-          matchId,
-          side: "A",
-          teamSize: input.teamA.length,
-          score: input.winner === "A" ? "1" : "0",
-        })
-        .returning({ matchTeamId: matchTeam.matchTeamId });
-      const [teamBRow] = await tx
-        .insert(matchTeam)
-        .values({
-          matchId,
-          side: "B",
-          teamSize: input.teamB.length,
-          score: input.winner === "B" ? "1" : "0",
-        })
-        .returning({ matchTeamId: matchTeam.matchTeamId });
-
-      // 3. Teilnahmen
-      await tx.insert(matchParticipation).values([
-        ...input.teamA.map((r) => ({
-          matchTeamId: teamARow.matchTeamId,
-          playerId: r.playerId,
-          bonusBeer: r.bonusBeer,
-          throws: r.throws,
-          hits: r.hits,
-        })),
-        ...input.teamB.map((r) => ({
-          matchTeamId: teamBRow.matchTeamId,
-          playerId: r.playerId,
-          bonusBeer: r.bonusBeer,
-          throws: r.throws,
-          hits: r.hits,
-        })),
+      await tx.insert(matchPlannedRoster).values([
+        ...input.teamA.map((playerId) => ({ matchId: newMatchId, playerId, side: "A" })),
+        ...input.teamB.map((playerId) => ({ matchId: newMatchId, playerId, side: "B" })),
       ]);
 
-      // 4. Schiedsrichter (optional) — nach den Teilnahmen: falls die
-      //    TS-Validierung doch etwas durchlässt, nennt der Trigger auf
-      //    match_referee den Schiedsrichter in seiner Fehlermeldung.
       if (input.refereePlayerId !== null) {
         await tx.insert(matchReferee).values({
-          matchId,
+          matchId: newMatchId,
           playerId: input.refereePlayerId,
         });
       }
 
-      // 5. v3-Berechnung — rein, kein DB-Zugriff.
-      const eloResult = computeMatchDeltas(
-        eloTeamA,
-        eloTeamB,
-        input.kFactor,
-        input.canDiff,
-        input.winner === "A" ? 1 : 0,
+      return newMatchId;
+    });
+  } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      return {
+        ok: false,
+        error: "Event oder Spieler existiert nicht mehr. Bitte Seite neu laden.",
+      };
+    }
+    if (isCheckViolation(err)) {
+      return { ok: false, error: "Die Eingaben verletzen eine Regel (Teamgröße)." };
+    }
+    console.error("createPlannedMatch", err);
+    return { ok: false, error: "Match konnte nicht angelegt werden." };
+  }
+
+  revalidatePath("/admin/spiele");
+  revalidatePath("/admin");
+  revalidatePath("/");
+  // Serverseitiger Redirect direkt zum Bewerten — konsistent mit scoreMatch
+  // unten, robuster als ein Client-Redirect nach einem ok:true-Return.
+  redirect(`/admin/spiele/${matchId}/bewerten`);
+}
+
+/**
+ * Schritt 2 des Zwei-Schritt-Ablaufs: ein zuvor angelegtes, geplantes Match
+ * bewerten. Der Kader kommt aus match_planned_roster (FOR UPDATE gesperrt,
+ * damit zwei gleichzeitige Bewertungsversuche desselben Matches nicht beide
+ * durchgehen) — der Client übermittelt nur noch Statistik und Sieger.
+ */
+export async function scoreMatch(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
+  const matchIdRaw = formData.get("match_id");
+  const matchId = typeof matchIdRaw === "string" ? Number(matchIdRaw) : NaN;
+  if (!Number.isInteger(matchId) || matchId <= 0) {
+    return { ok: false, error: "Ungültiges Match." };
+  }
+
+  const raw = formData.get("payload");
+  if (typeof raw !== "string") return { ok: false, error: "Formulardaten fehlen." };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "Formulardaten sind beschädigt." };
+  }
+
+  const params = await getEloParams();
+
+  try {
+    await db.transaction(async (tx) => {
+      // Match-Metadaten (k_factor/can_diff wurden beim Anlegen festgelegt)
+      // und Kader gemeinsam sperren — verhindert, dass dasselbe geplante
+      // Match zweimal gleichzeitig bewertet wird (zweiter Versuch findet
+      // keine Roster-Zeilen mehr, siehe unten).
+      const [matchRow] = await tx
+        .select({ kFactor: match.kFactor, canDiff: match.canDiff })
+        .from(match)
+        .where(eq(match.matchId, matchId))
+        .for("update");
+
+      if (!matchRow) {
+        throw new PlannedMatchNotFoundError();
+      }
+
+      const rosterRows = await tx
+        .select({ playerId: matchPlannedRoster.playerId, side: matchPlannedRoster.side })
+        .from(matchPlannedRoster)
+        .where(eq(matchPlannedRoster.matchId, matchId))
+        .for("update");
+
+      if (rosterRows.length === 0) {
+        throw new PlannedMatchNotFoundError();
+      }
+
+      const rosterTeamA = rosterRows.filter((r) => r.side === "A").map((r) => r.playerId);
+      const rosterTeamB = rosterRows.filter((r) => r.side === "B").map((r) => r.playerId);
+
+      const validated = validateScoringInput(parsed, rosterTeamA, rosterTeamB);
+      if (!validated.ok) {
+        throw new ScoringValidationError(validated.error);
+      }
+      const input = validated.value;
+
+      const kFactor = matchRow.kFactor as 50 | 40 | 30 | 20;
+
+      await applyEloAndPersist(
+        tx,
+        matchId,
+        { teamA: input.teamA, teamB: input.teamB, kFactor, canDiff: matchRow.canDiff, winner: input.winner },
         params,
       );
 
-      // 6. rating_history (append-only Wahrheit)
-      await tx.insert(ratingHistory).values(
-        eloResult.players.map((p) => ({
-          matchId,
-          playerId: p.playerId,
-          modelId: V3_MODEL_ID,
-          ratingBefore: p.ratingBefore.toFixed(4),
-          delta: p.delta.toFixed(4),
-          ratingAfter: p.ratingAfter.toFixed(4),
-          gamesPlayed: p.gamesPlayed,
-        })),
-      );
-
-      // 7. player_rating_current fortschreiben — updated_at hat nur bei
-      //    INSERT einen Default, bei UPDATE muss es explizit gesetzt werden.
-      const before = new Map(
-        Array.from(ratingByPlayer.entries()).map(([id, r]) => [
-          id,
-          { gamesPlayed: r.gamesPlayed, wins: r.wins, losses: r.losses },
-        ]),
-      );
-      const updates = deriveRatingUpdates(eloResult, before, input.winner, teamAIds);
-      for (const u of updates) {
-        await tx
-          .update(playerRatingCurrent)
-          .set({
-            rating: u.rating,
-            gamesPlayed: u.gamesPlayed,
-            wins: u.wins,
-            losses: u.losses,
-            updatedAt: sql`now()`,
-          })
-          .where(
-            and(
-              eq(playerRatingCurrent.playerId, u.playerId),
-              eq(playerRatingCurrent.modelId, V3_MODEL_ID),
-            ),
-          );
+      // Notiz wird erst hier gesetzt, wenn das Spiel beendet ist.
+      if (input.note !== null) {
+        await tx.update(match).set({ note: input.note }).where(eq(match.matchId, matchId));
       }
 
-      // Die Erfolgsmeldung trägt das Ergebnis — anders als eine
-      // Live-Vorschau vor dem Absenden ist das garantiert korrekt, weil es
-      // exakt der Wert ist, der gerade gespeichert wurde.
-      const biggest = [...eloResult.players].sort(
-        (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
-      )[0];
-      const biggestName = knownPlayers.get(biggest.playerId) ?? `Spieler ${biggest.playerId}`;
-      const sign = biggest.delta >= 0 ? "+" : "";
-      summaryMessage = `Match gespeichert. Team ${input.winner} gewinnt. Größte Änderung: ${biggestName} ${sign}${biggest.delta.toFixed(1)}.`;
+      // Kader-Platzhalter löschen — ab hier ist das Match "bewertet"
+      // (match_team-Zeilen existieren), nicht mehr "geplant".
+      await tx.delete(matchPlannedRoster).where(eq(matchPlannedRoster.matchId, matchId));
     });
   } catch (err) {
+    if (err instanceof PlannedMatchNotFoundError) {
+      return {
+        ok: false,
+        error: "Dieses Match ist nicht mehr geplant oder wurde bereits bewertet.",
+      };
+    }
+    if (err instanceof ScoringValidationError) {
+      return { ok: false, error: err.message };
+    }
     if (isTriggerException(err)) {
       return {
         ok: false,
@@ -421,18 +561,25 @@ export async function recordMatch(
       };
     }
     if (isUniqueViolation(err)) {
-      return { ok: false, error: "Dieses Match wurde bereits erfasst." };
+      return { ok: false, error: "Dieses Match wurde bereits bewertet." };
     }
-    console.error("recordMatch", err);
+    console.error("scoreMatch", err);
     return { ok: false, error: "Match konnte nicht gespeichert werden." };
   }
 
-  // Diese drei Aufrufe sind aktuell No-Ops: das Root-Layout liest die Session
-  // per cookies() und macht dadurch bereits jede Route dynamisch, der Full
-  // Route Cache ist app-weit aus. Trotzdem gesetzt, damit die Aufrufkonvention
-  // konsistent bleibt, falls sich das einmal ändert.
   revalidatePath("/admin/spiele");
   revalidatePath("/admin");
   revalidatePath("/");
-  return { ok: true, message: summaryMessage };
+  revalidatePath(`/spiel/${matchId}`);
+  // Serverseitiger Redirect statt eines ok:true-Returns: die Bewerten-Seite
+  // selbst wird durch das Bewerten ungültig (match_planned_roster ist jetzt
+  // leer, notFound() würde greifen) — ein clientseitiger router.push() nach
+  // dem Return verliert das Rennen gegen Next.js' automatische Revalidierung
+  // der aktuellen Route und zeigt kurz einen 404, bevor der Redirect greift.
+  // redirect() wirft eine Next-interne Exception und muss daher außerhalb
+  // des try/catch oben passieren.
+  redirect(`/spiel/${matchId}`);
 }
+
+class PlannedMatchNotFoundError extends Error {}
+class ScoringValidationError extends Error {}

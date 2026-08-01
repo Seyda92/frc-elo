@@ -40,12 +40,18 @@ export default async function MatchPage({ params }: Props) {
               {match.eventName ? ` · ${match.eventName}` : ""}
             </p>
             <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
-              {match.scoreLabel}
+              {match.name ?? match.scoreLabel}
             </h1>
+            {match.name && (
+              <p className="mt-1 font-display text-lg text-foam-muted">{match.scoreLabel}</p>
+            )}
             <p className="mt-1 text-sm text-foam-muted">
               {formatDateTime(match.playedAt)}
               {match.eventLocation ? ` · ${match.eventLocation}` : ""}
             </p>
+            {match.note && (
+              <p className="mt-2 text-sm text-foam-muted">{match.note}</p>
+            )}
           </div>
           <Link
             href="/"

@@ -39,6 +39,7 @@ export const match = pgTable("match", {
 	kFactor: integer("k_factor").notNull(),
 	canDiff: integer("can_diff").default(0).notNull(),
 	note: text(),
+	name: text(),
 }, (table) => [
 	index("idx_match_event").using("btree", table.eventId.asc().nullsLast().op("int4_ops")),
 	foreignKey({
@@ -80,6 +81,26 @@ export const matchTeam = pgTable("match_team", {
 	check("match_team_side_check", sql`side = ANY (ARRAY['A'::text, 'B'::text])`),
 	check("match_team_score_check", sql`score = ANY (ARRAY[(0)::numeric, (1)::numeric])`),
 	check("match_team_team_size_check", sql`(team_size >= 1) AND (team_size <= 20)`),
+]);
+
+export const matchPlannedRoster = pgTable("match_planned_roster", {
+	matchId: integer("match_id").notNull(),
+	playerId: integer("player_id").notNull(),
+	side: text().notNull(),
+}, (table) => [
+	index("idx_planned_roster_match").using("btree", table.matchId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.matchId],
+			foreignColumns: [match.matchId],
+			name: "match_planned_roster_match_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.playerId],
+			foreignColumns: [player.playerId],
+			name: "match_planned_roster_player_id_fkey"
+		}),
+	primaryKey({ columns: [table.matchId, table.playerId], name: "match_planned_roster_pkey" }),
+	check("match_planned_roster_side_check", sql`side = ANY (ARRAY['A'::text, 'B'::text])`),
 ]);
 
 export const playerRefereeStats = pgTable("player_referee_stats", {

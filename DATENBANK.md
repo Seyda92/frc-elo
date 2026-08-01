@@ -64,6 +64,7 @@ Persistenz). Dieses Schema ist der Vorschlag für die persistente Schicht ab Pha
 | `match_team` | Die zwei Teams eines Matches (Seite A/B), Größe, Ergebnis S |
 | `match_participation` | Spieler → Team, Bonusbier, Wurfstatistik |
 | `match_referee` | Schiedsrichter eines Matches (optional, 0 oder 1 pro Match) |
+| `match_planned_roster` | Kader eines geplanten, noch nicht bewerteten Matches (Seite A/B, ohne Ergebnis/Statistik) |
 | `player_referee_stats` | Cache: Anzahl geleiteter Partien je Spieler |
 | `rating_history` | Wertungsänderung je Spieler & Match (append-only Wahrheit) |
 | `player_rating_current` | Cache: aktuelles Rating je Spieler — **turnier-/eventübergreifend** |
@@ -153,7 +154,8 @@ CREATE TABLE match (
     played_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     k_factor   INTEGER     NOT NULL,                     -- K in {50,40,30,20}
     can_diff   INTEGER     NOT NULL DEFAULT 0,           -- D (Dosenunterschied, >=0)
-    note       TEXT
+    note       TEXT,
+    name       TEXT                                      -- optionaler Anzeigename (z.B. "Finale"), getrennt von note
 );
 
 -- Die zwei Seiten (Teams) eines Matches
@@ -239,6 +241,28 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_participant_not_referee
     BEFORE INSERT OR UPDATE ON match_participation
     FOR EACH ROW EXECUTE FUNCTION check_participant_not_referee();
+
+-- Zwei-Schritt-Match-Erfassung: Anlegen (Kader ohne Ergebnis) -> Bewerten.
+-- match_team.score ist NOT NULL (CHECK score IN (0,1)) - eine Team-Zeile kann
+-- also nicht ohne Ergebnis existieren. Diese Tabelle haelt deshalb nur den
+-- geplanten Kader (wer spielt auf Seite A/B), bis das Match bewertet wird.
+-- Beim Bewerten entstehen match_team/match_participation wie bisher, und die
+-- Zeilen hier werden in derselben Transaktion geloescht - "geplant" ist damit
+-- eine aus der DB ableitbare Tatsache (Roster-Zeilen ohne match_team-Zeilen),
+-- keine eigene Statusspalte. Bewusst ohne Bonusbier/Wuerfe/Treffer - die
+-- entstehen erst beim Bewerten direkt in match_participation.
+-- Bekannte Luecke: die Trigger oben pruefen nur match_participation, nicht
+-- diese Tabelle - ein Schiri-Konflikt beim Anlegen wird nur in der
+-- TypeScript-Validierung abgefangen, nicht auf DB-Ebene.
+CREATE TABLE match_planned_roster (
+    match_id  INTEGER NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
+    player_id INTEGER NOT NULL REFERENCES player(player_id),
+    side      TEXT    NOT NULL,
+    PRIMARY KEY (match_id, player_id),
+    CHECK (side IN ('A','B'))
+);
+
+CREATE INDEX idx_planned_roster_match ON match_planned_roster(match_id);
 
 -- Cache: Anzahl geleiteter Partien je Spieler (aus match_referee ableitbar,
 -- analog zu player_rating_current). Spart bei Ranglisten/Profilseiten das

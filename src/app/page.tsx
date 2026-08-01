@@ -2,9 +2,9 @@ import Link from "next/link";
 import {
   getFeaturedEvents,
   getLeaderboard,
+  getPlannedMatches,
   getPrimaryClub,
   getRecentMatches,
-  getUpcomingMatches,
 } from "@/db/queries";
 import { formatDate, formatDateTime, hitRate } from "@/lib/format";
 
@@ -15,7 +15,7 @@ export default async function HomePage() {
   const [ranked, recent, upcoming, featuredEvents] = await Promise.all([
     clubId != null ? getLeaderboard(clubId) : Promise.resolve([]),
     getRecentMatches(3),
-    getUpcomingMatches(),
+    getPlannedMatches(3),
     clubId != null ? getFeaturedEvents(clubId) : Promise.resolve([]),
   ]);
 
@@ -115,6 +115,9 @@ export default async function HomePage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-foam-muted">
                       {formatDateTime(match.playedAt)}
                     </p>
+                    {match.name && (
+                      <p className="mt-1 font-display text-lg text-amber">{match.name}</p>
+                    )}
                     <p className="mt-2 font-display text-xl text-foam sm:text-2xl">
                       {match.scoreLabel}
                     </p>
@@ -167,6 +170,9 @@ export default async function HomePage() {
                   <p className="text-xs uppercase tracking-[0.16em] text-amber">
                     Nächstes Match
                   </p>
+                  {match.name && (
+                    <p className="mt-1 font-display text-lg text-foam">{match.name}</p>
+                  )}
                   <p className="mt-2 font-display text-xl sm:text-2xl">
                     {match.scoreLabel}
                   </p>

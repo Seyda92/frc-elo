@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deriveRatingUpdates, validateMatchInput, type MatchFormPayload } from "./match-input.ts";
+import {
+  deriveRatingUpdates,
+  deriveTeamScores,
+  validatePlannedMatchInput,
+  validateScoringInput,
+  type PlannedMatchFormPayload,
+  type ScoringPayload,
+} from "./match-input.ts";
 import type { EloMatchResult } from "./elo.ts";
 
 const NOW = new Date("2026-07-31T20:00:00.000Z");
@@ -12,49 +19,52 @@ const KNOWN = new Map<number, string>([
   [4, "Saskia Dose"],
 ]);
 
-function basePayload(overrides: Partial<MatchFormPayload> = {}): unknown {
+// --- validatePlannedMatchInput ---
+
+function plannedBasePayload(overrides: Partial<PlannedMatchFormPayload> = {}): unknown {
   return {
     playedAt: NOW.toISOString(),
     eventId: null,
     kFactor: "40",
-    canDiff: "0",
-    note: null,
+    name: null,
     refereePlayerId: null,
-    winner: "A",
-    teamA: [{ playerId: "1", bonusBeer: 0, throws: 8, hits: 5 }],
-    teamB: [{ playerId: "2", bonusBeer: 0, throws: 8, hits: 4 }],
+    teamA: [{ playerId: "1" }],
+    teamB: [{ playerId: "2" }],
     ...overrides,
   };
 }
 
-test("gueltige minimale Nutzlast wird akzeptiert, IDs werden zu number", () => {
-  const result = validateMatchInput(basePayload(), KNOWN, NOW);
+test("geplant: gueltige minimale Nutzlast wird akzeptiert, kein winner noetig", () => {
+  const result = validatePlannedMatchInput(plannedBasePayload(), KNOWN, NOW);
   assert.equal(result.ok, true);
   if (result.ok) {
-    assert.equal(result.value.teamA[0].playerId, 1);
-    assert.equal(typeof result.value.teamA[0].playerId, "number");
-    assert.equal(result.value.kFactor, 40);
+    assert.deepEqual(result.value.teamA, [1]);
+    assert.deepEqual(result.value.teamB, [2]);
   }
 });
 
-test("leeres Team A wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ teamA: [] }), KNOWN, NOW);
+test("geplant: leeres Team A wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(plannedBasePayload({ teamA: [] }), KNOWN, NOW);
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Team A/);
 });
 
-test("leeres Team B wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ teamB: [] }), KNOWN, NOW);
+test("geplant: leeres Team B wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(plannedBasePayload({ teamB: [] }), KNOWN, NOW);
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Team B/);
 });
 
-test("Spieler in beiden Teams wird mit Namen abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({
-      teamA: [{ playerId: "1", bonusBeer: 0, throws: 1, hits: 1 }],
-      teamB: [{ playerId: "1", bonusBeer: 0, throws: 1, hits: 1 }],
-    }),
+test("geplant: 21 Spieler in einem Team werden abgelehnt", () => {
+  const teamA = Array.from({ length: 21 }, (_, i) => ({ playerId: String(i + 100) }));
+  const result = validatePlannedMatchInput(plannedBasePayload({ teamA }), KNOWN, NOW);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /höchstens 20/);
+});
+
+test("geplant: Spieler in beiden Teams wird mit Namen abgelehnt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ teamA: [{ playerId: "1" }], teamB: [{ playerId: "1" }] }),
     KNOWN,
     NOW,
   );
@@ -62,14 +72,9 @@ test("Spieler in beiden Teams wird mit Namen abgelehnt", () => {
   if (!result.ok) assert.match(result.error, /Torben Reifen/);
 });
 
-test("Spieler doppelt innerhalb eines Teams wird abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({
-      teamA: [
-        { playerId: "1", bonusBeer: 0, throws: 1, hits: 1 },
-        { playerId: "1", bonusBeer: 0, throws: 1, hits: 1 },
-      ],
-    }),
+test("geplant: Spieler doppelt innerhalb eines Teams wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ teamA: [{ playerId: "1" }, { playerId: "1" }] }),
     KNOWN,
     NOW,
   );
@@ -77,88 +82,51 @@ test("Spieler doppelt innerhalb eines Teams wird abgelehnt", () => {
   if (!result.ok) assert.match(result.error, /mehrfach/);
 });
 
-test("Schiedsrichter im eigenen Team wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ refereePlayerId: "1" }), KNOWN, NOW);
+test("geplant: Schiedsrichter im eigenen Kader wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ refereePlayerId: "1" }),
+    KNOWN,
+    NOW,
+  );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Schiedsrichter/);
 });
 
-test("gueltiger Schiedsrichter wird akzeptiert", () => {
-  const result = validateMatchInput(basePayload({ refereePlayerId: "3" }), KNOWN, NOW);
+test("geplant: gueltiger Schiedsrichter wird akzeptiert", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ refereePlayerId: "3" }),
+    KNOWN,
+    NOW,
+  );
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.value.refereePlayerId, 3);
 });
 
-test("Bonusbier ueber 10 wird abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({ teamA: [{ playerId: "1", bonusBeer: 11, throws: 1, hits: 1 }] }),
-    KNOWN,
-    NOW,
-  );
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Bonusbier/);
-});
-
-test("Bonusbier negativ wird abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({ teamA: [{ playerId: "1", bonusBeer: -1, throws: 1, hits: 1 }] }),
-    KNOWN,
-    NOW,
-  );
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Bonusbier/);
-});
-
-test("Treffer ueber Wuerfe wird abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({ teamA: [{ playerId: "1", bonusBeer: 0, throws: 3, hits: 5 }] }),
-    KNOWN,
-    NOW,
-  );
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Treffer/);
-});
-
-test("nicht erlaubter K-Faktor wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ kFactor: "35" }), KNOWN, NOW);
+test("geplant: nicht erlaubter K-Faktor wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(plannedBasePayload({ kFactor: "35" }), KNOWN, NOW);
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /K-Faktor/);
 });
 
-test("negativer Dosenunterschied wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ canDiff: "-1" }), KNOWN, NOW);
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Dosenunterschied/);
-});
-
-test("fehlender Sieger wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ winner: null }), KNOWN, NOW);
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Sieger/);
-});
-
-test("ungueltiges Datum wird abgelehnt", () => {
-  const result = validateMatchInput(basePayload({ playedAt: "kein-datum" }), KNOWN, NOW);
+test("geplant: ungueltiges Datum wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ playedAt: "kein-datum" }),
+    KNOWN,
+    NOW,
+  );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Zeitpunkt/);
 });
 
-test("Zeitpunkt eine Stunde in der Zukunft wird abgelehnt", () => {
-  const future = new Date(NOW.getTime() + 60 * 60 * 1000).toISOString();
-  const result = validateMatchInput(basePayload({ playedAt: future }), KNOWN, NOW);
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Zukunft/);
-});
-
-test("Zeitpunkt 30 Sekunden in der Zukunft wird toleriert (Uhrenversatz)", () => {
-  const nearFuture = new Date(NOW.getTime() + 30 * 1000).toISOString();
-  const result = validateMatchInput(basePayload({ playedAt: nearFuture }), KNOWN, NOW);
+test("geplant: Zeitpunkt in der Zukunft wird akzeptiert (ein geplantes Match liegt per Definition voraus)", () => {
+  const future = new Date(NOW.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const result = validatePlannedMatchInput(plannedBasePayload({ playedAt: future }), KNOWN, NOW);
   assert.equal(result.ok, true);
 });
 
-test("unbekannte Spieler-ID wird abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({ teamA: [{ playerId: "999", bonusBeer: 0, throws: 1, hits: 1 }] }),
+test("geplant: unbekannte Spieler-ID wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ teamA: [{ playerId: "999" }] }),
     KNOWN,
     NOW,
   );
@@ -166,34 +134,112 @@ test("unbekannte Spieler-ID wird abgelehnt", () => {
   if (!result.ok) assert.match(result.error, /Unbekannter Spieler/);
 });
 
-test("21 Spieler in einem Team werden abgelehnt", () => {
-  const teamA = Array.from({ length: 21 }, (_, i) => ({
-    playerId: String(i + 100),
-    bonusBeer: 0,
-    throws: 1,
-    hits: 1,
-  }));
-  const result = validateMatchInput(basePayload({ teamA }), KNOWN, NOW);
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /höchstens 20/);
+test("geplant: kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
+  for (const bad of [null, undefined, "text", 42, [], { teamA: "x", teamB: "y" }]) {
+    assert.doesNotThrow(() => {
+      const result = validatePlannedMatchInput(bad, KNOWN, NOW);
+      assert.equal(result.ok, false);
+    });
+  }
 });
 
-test("nicht-ganzzahlige Wuerfe werden abgelehnt", () => {
-  const result = validateMatchInput(
-    basePayload({ teamA: [{ playerId: "1", bonusBeer: 0, throws: 1.5, hits: 1 }] }),
-    KNOWN,
-    NOW,
+// --- validateScoringInput ---
+
+function scoringPayload(overrides: Partial<ScoringPayload> = {}): unknown {
+  return {
+    winner: "A",
+    note: null,
+    teamA: [{ playerId: "1", bonusBeer: 0, throws: 8, hits: 5 }],
+    teamB: [{ playerId: "2", bonusBeer: 0, throws: 8, hits: 4 }],
+    ...overrides,
+  };
+}
+
+test("bewerten: vollstaendige Statistik zum Kader wird akzeptiert", () => {
+  const result = validateScoringInput(scoringPayload(), [1], [2]);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.value.winner, "A");
+    assert.equal(result.value.teamA[0].playerId, 1);
+  }
+});
+
+test("bewerten: fehlender Kaderspieler wird abgelehnt", () => {
+  // Kader hat Spieler 1 und 5, aber nur Statistik zu Spieler 1 wird geschickt
+  const result = validateScoringInput(scoringPayload(), [1, 5], [2]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Kader/);
+});
+
+test("bewerten: zusaetzlicher, nicht im Kader stehender Spieler wird abgelehnt", () => {
+  // Statistik enthaelt Spieler 1, aber der geplante Kader ist leer geblieben
+  const result = validateScoringInput(scoringPayload(), [], [2]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Kader/);
+});
+
+test("bewerten: Bonusbier ueber 10 wird abgelehnt", () => {
+  const result = validateScoringInput(
+    scoringPayload({ teamA: [{ playerId: "1", bonusBeer: 11, throws: 1, hits: 1 }] }),
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Bonusbier/);
+});
+
+test("bewerten: negatives Bonusbier wird abgelehnt", () => {
+  const result = validateScoringInput(
+    scoringPayload({ teamA: [{ playerId: "1", bonusBeer: -1, throws: 1, hits: 1 }] }),
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Bonusbier/);
+});
+
+test("bewerten: nicht-ganzzahlige Wuerfe werden abgelehnt", () => {
+  const result = validateScoringInput(
+    scoringPayload({ teamA: [{ playerId: "1", bonusBeer: 0, throws: 1.5, hits: 1 }] }),
+    [1],
+    [2],
   );
   assert.equal(result.ok, false);
 });
 
-test("kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
+test("bewerten: Treffer ueber Wuerfe wird abgelehnt", () => {
+  const result = validateScoringInput(
+    scoringPayload({ teamA: [{ playerId: "1", bonusBeer: 0, throws: 3, hits: 5 }] }),
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Treffer/);
+});
+
+test("bewerten: fehlender Sieger wird abgelehnt", () => {
+  const result = validateScoringInput(scoringPayload({ winner: null }), [1], [2]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Sieger/);
+});
+
+test("bewerten: kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
   for (const bad of [null, undefined, "text", 42, [], { teamA: "x", teamB: "y" }]) {
     assert.doesNotThrow(() => {
-      const result = validateMatchInput(bad, KNOWN, NOW);
+      const result = validateScoringInput(bad, [1], [2]);
       assert.equal(result.ok, false);
     });
   }
+});
+
+// --- deriveTeamScores ---
+
+test("deriveTeamScores: A gewinnt -> 1/0", () => {
+  assert.deepEqual(deriveTeamScores("A"), { scoreA: "1", scoreB: "0" });
+});
+
+test("deriveTeamScores: B gewinnt -> 0/1", () => {
+  assert.deepEqual(deriveTeamScores("B"), { scoreA: "0", scoreB: "1" });
 });
 
 // --- deriveRatingUpdates ---

@@ -5,6 +5,8 @@ import {
   event,
   match,
   matchParticipation,
+  matchPlannedRoster,
+  matchReferee,
   matchTeam,
   player,
   playerRatingCurrent,
@@ -150,7 +152,7 @@ export type MatchEntryPlayer = {
   jerseyNumber: number | null;
   clubName: string;
   /** Nur für die Anzeige im Formular — die Action liest die maßgeblichen
-   *  Werte innerhalb der Transaktion neu (siehe recordMatch). */
+   *  Werte innerhalb der Transaktion neu (siehe scoreMatch). */
   rating: number;
   gamesPlayed: number;
 };
@@ -176,7 +178,7 @@ export async function getPlayersForMatchEntry(): Promise<MatchEntryPlayer[]> {
       ),
     )
     .where(eq(player.isActive, 1))
-    .orderBy(asc(club.name), asc(player.displayName));
+    .orderBy(asc(player.displayName));
 
   return rows.map((row) => ({
     playerId: row.playerId,
@@ -186,6 +188,93 @@ export async function getPlayersForMatchEntry(): Promise<MatchEntryPlayer[]> {
     rating: row.rating != null ? Math.round(Number(row.rating)) : 200,
     gamesPlayed: row.gamesPlayed ?? 0,
   }));
+}
+
+export type PlannedMatchDetail = {
+  matchId: number;
+  eventId: number | null;
+  eventName: string | null;
+  playedAt: string;
+  kFactor: number;
+  canDiff: number;
+  note: string | null;
+  refereeName: string | null;
+  teamA: MatchEntryPlayer[];
+  teamB: MatchEntryPlayer[];
+};
+
+/** Match + Kader eines geplanten, noch nicht bewerteten Matches — für die
+ *  Bewerten-Seite. undefined, wenn es das Match nicht gibt oder es bereits
+ *  bewertet wurde (keine match_planned_roster-Zeilen mehr). */
+export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMatchDetail | undefined> {
+  const [row] = await db
+    .select({
+      matchId: match.matchId,
+      eventId: match.eventId,
+      eventName: event.name,
+      playedAt: match.playedAt,
+      kFactor: match.kFactor,
+      canDiff: match.canDiff,
+      note: match.note,
+    })
+    .from(match)
+    .leftJoin(event, eq(event.eventId, match.eventId))
+    .where(eq(match.matchId, matchId));
+
+  if (!row) return undefined;
+
+  const rosterRows = await db
+    .select({
+      playerId: matchPlannedRoster.playerId,
+      side: matchPlannedRoster.side,
+      name: player.displayName,
+      jerseyNumber: player.jerseyNumber,
+      clubName: club.name,
+      rating: playerRatingCurrent.rating,
+      gamesPlayed: playerRatingCurrent.gamesPlayed,
+    })
+    .from(matchPlannedRoster)
+    .innerJoin(player, eq(player.playerId, matchPlannedRoster.playerId))
+    .leftJoin(club, eq(club.clubId, player.clubId))
+    .leftJoin(
+      playerRatingCurrent,
+      and(
+        eq(playerRatingCurrent.playerId, matchPlannedRoster.playerId),
+        eq(playerRatingCurrent.modelId, V3_MODEL_ID),
+      ),
+    )
+    .where(eq(matchPlannedRoster.matchId, matchId))
+    .orderBy(asc(player.displayName));
+
+  if (rosterRows.length === 0) return undefined;
+
+  const toEntryPlayer = (r: (typeof rosterRows)[number]): MatchEntryPlayer => ({
+    playerId: r.playerId,
+    name: r.name,
+    jerseyNumber: r.jerseyNumber,
+    clubName: r.clubName ?? "—",
+    rating: r.rating != null ? Math.round(Number(r.rating)) : 200,
+    gamesPlayed: r.gamesPlayed ?? 0,
+  });
+
+  const [refereeRow] = await db
+    .select({ name: player.displayName })
+    .from(matchReferee)
+    .innerJoin(player, eq(player.playerId, matchReferee.playerId))
+    .where(eq(matchReferee.matchId, matchId));
+
+  return {
+    matchId: row.matchId,
+    eventId: row.eventId,
+    eventName: row.eventName,
+    playedAt: new Date(row.playedAt).toISOString(),
+    kFactor: row.kFactor,
+    canDiff: row.canDiff,
+    note: row.note,
+    refereeName: refereeRow?.name ?? null,
+    teamA: rosterRows.filter((r) => r.side === "A").map(toEntryPlayer),
+    teamB: rosterRows.filter((r) => r.side === "B").map(toEntryPlayer),
+  };
 }
 
 export async function getMatchCount(): Promise<number> {
@@ -278,7 +367,7 @@ export async function getFeaturedEvents(clubId: number): Promise<EventSummary[]>
     .filter((e) => e.status !== "past");
 }
 
-type MatchRow = { matchId: number; eventId: number | null; playedAt: string };
+type MatchRow = { matchId: number; eventId: number | null; playedAt: string; name: string | null };
 
 async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[]> {
   if (matchRows.length === 0) return [];
@@ -321,15 +410,48 @@ async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[
     teamsByMatchId.set(t.matchId, list);
   }
 
+  // Fallback für geplante, noch nicht bewertete Matches: die haben keine
+  // match_team-Zeilen, ihr Kader steckt stattdessen in match_planned_roster.
+  const matchIdsWithoutTeams = matchRows
+    .filter((m) => !teamsByMatchId.has(m.matchId))
+    .map((m) => m.matchId);
+  const plannedRosterRows = matchIdsWithoutTeams.length
+    ? await db
+        .select({
+          matchId: matchPlannedRoster.matchId,
+          side: matchPlannedRoster.side,
+          playerId: matchPlannedRoster.playerId,
+          playerName: player.displayName,
+        })
+        .from(matchPlannedRoster)
+        .innerJoin(player, eq(player.playerId, matchPlannedRoster.playerId))
+        .where(inArray(matchPlannedRoster.matchId, matchIdsWithoutTeams))
+    : [];
+  const plannedRosterByMatchId = new Map<number, { teamA: TeamMember[]; teamB: TeamMember[] }>();
+  for (const r of plannedRosterRows) {
+    const entry = plannedRosterByMatchId.get(r.matchId) ?? { teamA: [], teamB: [] };
+    const member = { id: String(r.playerId), name: r.playerName };
+    if (r.side === "A") entry.teamA.push(member);
+    else entry.teamB.push(member);
+    plannedRosterByMatchId.set(r.matchId, entry);
+  }
+
   return matchRows.map((m) => {
     const teams = teamsByMatchId.get(m.matchId) ?? [];
     const teamARow = teams.find((t) => t.side === "A");
     const teamBRow = teams.find((t) => t.side === "B");
-    const teamA = teamARow ? rosterByTeamId.get(teamARow.matchTeamId) ?? [] : [];
-    const teamB = teamBRow ? rosterByTeamId.get(teamBRow.matchTeamId) ?? [] : [];
+    // Status ist eine DB-Tatsache, keine Uhrzeit-Heuristik: match_team-Zeilen
+    // existieren genau dann, wenn das Match bewertet wurde (siehe
+    // migrations/0001_planned_match_roster.sql). So wird auch ein Match, das
+    // gestern gespielt aber noch nicht bewertet wurde, korrekt als "planned"
+    // geführt statt fälschlich als "played".
+    const isPlayed = teamARow !== undefined || teamBRow !== undefined;
+
+    const planned = plannedRosterByMatchId.get(m.matchId);
+    const teamA = teamARow ? rosterByTeamId.get(teamARow.matchTeamId) ?? [] : planned?.teamA ?? [];
+    const teamB = teamBRow ? rosterByTeamId.get(teamBRow.matchTeamId) ?? [] : planned?.teamB ?? [];
 
     const playedAtDate = new Date(m.playedAt);
-    const isPlayed = playedAtDate.getTime() <= Date.now();
     const scoreA = teamARow ? Number(teamARow.score) : null;
     const scoreB = teamBRow ? Number(teamBRow.score) : null;
     const winner: "A" | "B" | undefined = isPlayed
@@ -347,6 +469,8 @@ async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[
           ? "Team B gewinnt"
           : "Unentschieden"
       : `Geplant · ${new Intl.DateTimeFormat("de-DE", {
+          day: "2-digit",
+          month: "2-digit",
           hour: "2-digit",
           minute: "2-digit",
         }).format(playedAtDate)}`;
@@ -354,6 +478,7 @@ async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[
     return {
       id: String(m.matchId),
       eventId: m.eventId != null ? String(m.eventId) : undefined,
+      name: m.name ?? undefined,
       playedAt: playedAtDate.toISOString(),
       status: isPlayed ? "played" : "planned",
       teamA,
@@ -365,10 +490,13 @@ async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[
 }
 
 export async function getRecentMatches(limit = 3): Promise<MatchSummary[]> {
+  // Nur bewertete Matches (existierende match_team-Zeilen) - ein geplantes,
+  // noch nicht bewertetes Match mit played_at in der Vergangenheit gehört
+  // nicht in "Zuletzt erfasst", sondern zu getPlannedMatches().
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt })
+    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
     .from(match)
-    .where(lte(match.playedAt, sql`now()`))
+    .where(sql`EXISTS (SELECT 1 FROM ${matchTeam} WHERE ${matchTeam.matchId} = ${match.matchId})`)
     .orderBy(desc(match.playedAt))
     .limit(limit);
   return buildMatchSummaries(rows);
@@ -376,10 +504,25 @@ export async function getRecentMatches(limit = 3): Promise<MatchSummary[]> {
 
 export async function getUpcomingMatches(): Promise<MatchSummary[]> {
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt })
+    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
     .from(match)
     .where(gt(match.playedAt, sql`now()`))
     .orderBy(asc(match.playedAt));
+  return buildMatchSummaries(rows);
+}
+
+/** Geplante, noch nicht bewertete Matches (Kader in match_planned_roster,
+ *  noch keine match_team-Zeilen) - für "Nächstes Match" und die "Geplante
+ *  Matches"-Übersicht in /admin/spiele. */
+export async function getPlannedMatches(limit?: number): Promise<MatchSummary[]> {
+  const query = db
+    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .from(match)
+    .where(
+      sql`EXISTS (SELECT 1 FROM ${matchPlannedRoster} WHERE ${matchPlannedRoster.matchId} = ${match.matchId})`,
+    )
+    .orderBy(asc(match.playedAt));
+  const rows = limit != null ? await query.limit(limit) : await query;
   return buildMatchSummaries(rows);
 }
 
@@ -388,7 +531,7 @@ export async function getPlayerRecentMatches(
   limit = 4,
 ): Promise<MatchSummary[]> {
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt })
+    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
     .from(match)
     .innerJoin(matchTeam, eq(matchTeam.matchId, match.matchId))
     .innerJoin(matchParticipation, eq(matchParticipation.matchTeamId, matchTeam.matchTeamId))
@@ -404,6 +547,8 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
       matchId: match.matchId,
       eventId: match.eventId,
       playedAt: match.playedAt,
+      name: match.name,
+      note: match.note,
       eventName: event.name,
       clubCity: club.city,
     })
@@ -415,7 +560,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
   if (!row) return undefined;
 
   const [summary] = await buildMatchSummaries([
-    { matchId: row.matchId, eventId: row.eventId, playedAt: row.playedAt },
+    { matchId: row.matchId, eventId: row.eventId, playedAt: row.playedAt, name: row.name },
   ]);
 
   const statRows = await db
@@ -466,6 +611,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
     ...summary,
     eventName: row.eventName ?? undefined,
     eventLocation: row.clubCity ?? undefined,
+    note: row.note ?? undefined,
     playerStats,
   };
 }

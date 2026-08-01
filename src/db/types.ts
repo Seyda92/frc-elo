@@ -51,6 +51,7 @@ export type MatchPlayerStat = {
 export type MatchSummary = {
   id: string;
   eventId?: string;
+  name?: string;
   playedAt: string;
   status: "planned" | "played";
   teamA: TeamMember[];
@@ -62,5 +63,6 @@ export type MatchSummary = {
 export type MatchDetail = MatchSummary & {
   eventName?: string;
   eventLocation?: string;
+  note?: string;
   playerStats: MatchPlayerStat[];
 };
