@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { timingSafeEqual } from "node:crypto";
 
 /**
  * Gemeinsamer Basic-Auth-Türsteher für die Testinstanz — unabhängig von den
@@ -7,13 +6,15 @@ import { timingSafeEqual } from "node:crypto";
  * BASIC_AUTH_USER/BASIC_AUTH_PASS gesetzt sind, damit lokale Entwicklung und
  * ein späteres Production-Deploy ohne Basic-Auth nicht versehentlich
  * ausgesperrt werden.
+ *
+ * Kein node:crypto hier — Middleware läuft in der Edge-Runtime, die das
+ * nicht unterstützt (Build bricht sonst mit "Import trace: node:crypto" ab).
+ * Ein simpler Vergleich reicht für diesen Zweck (Testinstanz, kein
+ * sicherheitskritisches Ziel für Timing-Angriffe).
  */
 
 function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  return a === b;
 }
 
 export function middleware(request: NextRequest) {
