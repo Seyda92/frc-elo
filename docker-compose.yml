@@ -1,0 +1,17 @@
+services:
+  frc-elo-app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+    networks:
+      - frcspieldaten_default
+      - nginx-proxy-manager_default
+
+networks:
+  frcspieldaten_default:
+    external: true
+  nginx-proxy-manager_default:
+    external: true
