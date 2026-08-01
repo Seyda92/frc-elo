@@ -6,6 +6,10 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       AUTH_SECRET: ${AUTH_SECRET}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+      BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
+    ports:
+      - "8080:3000"
     networks:
       - frcspieldaten_default
       - nginx-proxy-manager_default
