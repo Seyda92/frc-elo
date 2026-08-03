@@ -14,7 +14,7 @@ type User = { username: string; role: "admin" | "user" };
 export function SiteHeader({ user }: { user: User | null }) {
   const pathname = usePathname();
   const links =
-    user?.role === "admin" ? [...publicLinks, { href: "/admin", label: "Admin" }] : publicLinks;
+    user?.role === "admin" ? [...publicLinks, { href: "/admin", label: "Schiri" }] : publicLinks;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-asphalt/95 backdrop-blur-md">
