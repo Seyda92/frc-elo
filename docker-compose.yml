@@ -8,6 +8,9 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER}
       BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
+      # Testinstanz läuft ohne eigene Domain/SSL nur über http://<ip>:8080 —
+      # auf "true" setzen, sobald sie hinter TLS (z.B. nginx-proxy-manager) läuft.
+      USE_SECURE_COOKIES: ${USE_SECURE_COOKIES:-false}
     ports:
       - "8080:3000"
     networks:

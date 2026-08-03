@@ -124,9 +124,12 @@ export function sessionCookieOptions(ttlSeconds: number = SESSION_TTL_SECONDS) {
   return {
     httpOnly: true as const,
     sameSite: "lax" as const,
-    // Unbedingt bedingt: die App läuft lokal auf http://localhost, ein
-    // unconditional `secure: true` würde das Cookie dort still verwerfen.
-    secure: process.env.NODE_ENV === "production",
+    // Bewusst an eine eigene Env-Var gekoppelt statt an NODE_ENV: die
+    // Testinstanz läuft in production ohne eigene Domain/SSL nur über
+    // http://<ip>:8080, und ein `Secure`-Cookie wird von Browsern über
+    // unverschlüsseltes HTTP kommentarlos verworfen — das Cookie kommt
+    // dann nie beim Client an, obwohl der Login "erfolgreich" wirkt.
+    secure: process.env.USE_SECURE_COOKIES === "true",
     path: "/" as const,
     maxAge: ttlSeconds,
   };
