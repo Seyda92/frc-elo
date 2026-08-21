@@ -8,11 +8,12 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER}
       BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
-      # Testinstanz läuft ohne eigene Domain/SSL nur über http://<ip>:8080 —
-      # auf "true" setzen, sobald sie hinter TLS (z.B. nginx-proxy-manager) läuft.
       USE_SECURE_COOKIES: ${USE_SECURE_COOKIES:-false}
     ports:
-      - "8080:3000"
+      # Nur auf localhost gebunden — von außen läuft alles über
+      # nginx-proxy-manager (https://elo.1frc.de), der den Container
+      # direkt über das Docker-Netz erreicht.
+      - "127.0.0.1:8080:3000"
     networks:
       - frcspieldaten_default
       - nginx-proxy-manager_default
