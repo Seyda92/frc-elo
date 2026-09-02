@@ -51,7 +51,7 @@ CREATE TABLE rating_model (
     model_id            INTEGER       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code                TEXT          NOT NULL UNIQUE DEFAULT 'v3',
     description         TEXT          NOT NULL DEFAULT 'v3: nullsummen-neutral, Gleichverteilung P/n',
-    start_rating        NUMERIC(10,4) NOT NULL DEFAULT 200,
+    start_rating        NUMERIC(10,4) NOT NULL DEFAULT 1000,
     size_factor_offset  NUMERIC(10,4) NOT NULL DEFAULT 7.0,  -- c in (n+D)/(n+c)
     is_zero_sum         INTEGER       NOT NULL DEFAULT 1,
     distribution        TEXT          NOT NULL DEFAULT 'equal',  -- v3 = Gleichverteilung P/n
@@ -74,7 +74,7 @@ CREATE TABLE match (
     match_id   INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     event_id   INTEGER     REFERENCES event(event_id),  -- Zuordnung Spieltag
     played_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    k_factor   INTEGER     NOT NULL,                     -- K in {50,40,30,20}
+    k_factor   INTEGER     NOT NULL DEFAULT 40,          -- fest 40; 50/30/20 nur in historischen Zeilen
     can_diff   INTEGER     NOT NULL DEFAULT 0,           -- D (Dosenunterschied, >=0)
     note       TEXT,
     name       TEXT                                      -- optionaler Anzeigename (z.B. "Finale"), getrennt von note

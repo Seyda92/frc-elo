@@ -25,7 +25,6 @@ function plannedBasePayload(overrides: Partial<PlannedMatchFormPayload> = {}): u
   return {
     playedAt: NOW.toISOString(),
     eventId: null,
-    kFactor: "40",
     name: null,
     refereePlayerId: null,
     teamA: [{ playerId: "1" }],
@@ -102,10 +101,14 @@ test("geplant: gueltiger Schiedsrichter wird akzeptiert", () => {
   if (result.ok) assert.equal(result.value.refereePlayerId, 3);
 });
 
-test("geplant: nicht erlaubter K-Faktor wird abgelehnt", () => {
-  const result = validatePlannedMatchInput(plannedBasePayload({ kFactor: "35" }), KNOWN, NOW);
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /K-Faktor/);
+test("geplant: K-Faktor ist immer fest 40, unabhaengig vom Payload", () => {
+  // Das Formular hat kein k_factor-Feld mehr; selbst wenn ein Aufrufer eines
+  // mitschickt, darf es keine Wirkung haben.
+  const withStrayField = plannedBasePayload() as Record<string, unknown>;
+  withStrayField.kFactor = "20";
+  const result = validatePlannedMatchInput(withStrayField, KNOWN, NOW);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.kFactor, 40);
 });
 
 test("geplant: ungueltiges Datum wird abgelehnt", () => {
@@ -300,7 +303,7 @@ test("rating wird auf 4 Nachkommastellen formatiert", () => {
   assert.equal(byId.get(1)!.rating, "207.3333");
 });
 
-test("Delta 0 (z.B. 10 Bonusbiere) zaehlt trotzdem als Sieg", () => {
+test("Delta 0 zaehlt trotzdem als Sieg", () => {
   const eloResult = fakeEloResult([1], [2], { 1: 0, 2: -5 });
   const before = new Map([
     [1, { gamesPlayed: 0, wins: 0, losses: 0 }],

@@ -8,15 +8,26 @@ import type { EloMatchResult } from "./elo.ts";
  *
  * Zwei-Schritt-Ablauf: Anlegen (Kader + Metadaten, kein Ergebnis) und
  * Bewerten (Statistik + Sieger zu einem bereits feststehenden Kader). Beide
- * Schritte teilen sich die Metadaten-Prüfungen unten (K-Faktor, Zeitpunkt,
- * Event, Schiedsrichter) — nur Kader-Form und Ergebnis-Pflicht unterscheiden
- * sich.
+ * Schritte teilen sich die Metadaten-Prüfungen unten (Zeitpunkt, Event,
+ * Schiedsrichter) — nur Kader-Form und Ergebnis-Pflicht unterscheiden sich.
  */
 
+/**
+ * Seit 09/2026 wird für jedes Spiel fest K = 40 verwendet: der "Spieltyp" war
+ * nie eine eigene Spalte, sondern genau dieser K-Faktor, und die Auswahl im
+ * Formular hat am Turniertag mehr Fehler als Nutzen gebracht.
+ *
+ * ALLOWED_K_FACTORS und K_FACTOR_LABELS bleiben bewusst stehen: ältere Spiele
+ * in der DB tragen noch 50/30/20, und die Staffelung soll wiederbelebbar sein,
+ * ohne sie neu herzuleiten.
+ */
 export const ALLOWED_K_FACTORS = [50, 40, 30, 20] as const;
 export type KFactor = (typeof ALLOWED_K_FACTORS)[number];
 
-/** Spieltyp-Beschriftung für den K-Faktor, für die Auswahl im Formular. */
+/** K-Faktor für neu angelegte Spiele — nicht mehr im Formular wählbar. */
+export const DEFAULT_K_FACTOR: KFactor = 40;
+
+/** Spieltyp-Beschriftung für den K-Faktor. Aktuell ungenutzt, siehe oben. */
 export const K_FACTOR_LABELS: Record<KFactor, string> = {
   50: "Turnier",
   40: "Liga",
@@ -144,14 +155,6 @@ function validatePlayerIdRows(
   return { ok: true, value: normalized };
 }
 
-function validateKFactor(raw: Record<string, unknown>): { ok: true; value: KFactor } | { ok: false; error: string } {
-  const kFactorNum = Number(raw.kFactor);
-  if (!ALLOWED_K_FACTORS.includes(kFactorNum as KFactor)) {
-    return { ok: false, error: "K-Faktor muss 50, 40, 30 oder 20 sein." };
-  }
-  return { ok: true, value: kFactorNum as KFactor };
-}
-
 /**
  * `allowFuture`: beim Anlegen eines geplanten Matches ist ein Zeitpunkt in
  * der Zukunft der Normalfall (das Spiel hat ja noch nicht stattgefunden).
@@ -212,7 +215,6 @@ export type PlannedPayloadRow = { playerId: string };
 export type PlannedMatchFormPayload = {
   playedAt: string;
   eventId: string | null;
-  kFactor: string;
   name: string | null;
   refereePlayerId: string | null;
   teamA: PlannedPayloadRow[];
@@ -271,10 +273,6 @@ export function validatePlannedMatchInput(
   if (!refereeResult.ok) return refereeResult;
   const refereePlayerId = refereeResult.value;
 
-  const kFactorResult = validateKFactor(raw);
-  if (!kFactorResult.ok) return kFactorResult;
-  const kFactor = kFactorResult.value;
-
   const playedAtResult = validatePlayedAt(raw, now, true);
   if (!playedAtResult.ok) return playedAtResult;
   const playedAt = playedAtResult.value;
@@ -297,9 +295,18 @@ export function validatePlannedMatchInput(
     // canDiff kommt beim Anlegen bewusst nicht aus dem Formular — der
     // Dosenunterschied wirkt zwar in der Elo-Formel (sizeFactor), wird aber
     // aktuell nirgends erfasst; fest 0, bis er automatisch (z. B. aus
-    // markierten leeren Dosen je Spieler) hergeleitet werden kann. note wird
-    // erst beim Bewerten erfasst (siehe validateScoringInput), nicht hier.
-    value: { playedAt, eventId, kFactor, name, refereePlayerId, teamA, teamB },
+    // markierten leeren Dosen je Spieler) hergeleitet werden kann. Der
+    // K-Faktor ebenso: fest DEFAULT_K_FACTOR, siehe dort. note wird erst beim
+    // Bewerten erfasst (siehe validateScoringInput), nicht hier.
+    value: {
+      playedAt,
+      eventId,
+      kFactor: DEFAULT_K_FACTOR,
+      name,
+      refereePlayerId,
+      teamA,
+      teamB,
+    },
   };
 }
 
@@ -388,8 +395,8 @@ export type RatingUpdate = {
 /**
  * Leitet aus dem Elo-Ergebnis die neuen player_rating_current-Werte ab.
  * Sieg/Niederlage kommt aus der SEITE, nie aus dem Vorzeichen des Deltas —
- * bei 10 Bonusbieren ist das Delta exakt 0, der Spieler kann trotzdem
- * gewonnen haben.
+ * ein Delta von 0 oder mit "falschem" Vorzeichen ist möglich (z. B. bei exakt
+ * erwartetem Ausgang), der Spieler kann trotzdem gewonnen haben.
  */
 export function deriveRatingUpdates(
   eloResult: EloMatchResult,

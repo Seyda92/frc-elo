@@ -17,8 +17,6 @@ const ELO_DIVISOR = 400;
 const ELO_BASE = 10;
 /** Begrenzt den Exponenten gegen Overflow; mathematisch ohne messbaren Effekt. */
 const EXPONENT_CLAMP = 300;
-/** Bonusbier/Strafbier dämpft das Delta um 10 % je Bier. */
-const BONUS_BEER_COEFFICIENT = 0.1;
 
 export type EloParams = {
   /** c in (n+D)/(n+c) — aus `rating_model.size_factor_offset` (7.0) */
@@ -36,8 +34,6 @@ export type EloPlayerInput = {
   playerId: number;
   /** R_i vor diesem Match */
   rating: number;
-  /** B_i, 0..10 */
-  bonusBeer: number;
   /** g_i: Anzahl Matches VOR diesem, über alle Turniere gezählt */
   gamesPlayed: number;
 };
@@ -150,12 +146,13 @@ export function computeMatchDeltas(
   const teamDeltaA = k * sharedFactor * (scoreA - expectedA);
   const teamDeltaB = k * sharedFactor * (scoreB - expectedB);
 
-  // Verteilung: P/n gleichmäßig, gedämpft um das Bonusbier. Der Teamfaktor
-  // steckt bereits in P und darf hier NICHT erneut multipliziert werden.
+  // Verteilung: P/n gleichmäßig. Der Teamfaktor steckt bereits in P und darf
+  // hier NICHT erneut multipliziert werden. Das Bonusbier wirkt bewusst nicht
+  // mehr auf die Wertung (Entscheidung 09/2026): es wird weiterhin erfasst und
+  // angezeigt, geht aber nicht in die Rechnung ein.
   const distribute = (team: EloPlayerInput[], teamDelta: number): EloPlayerResult[] =>
     team.map((player) => {
-      const rawDelta =
-        (teamDelta / team.length) * (1 - BONUS_BEER_COEFFICIENT * player.bonusBeer);
+      const rawDelta = teamDelta / team.length;
       // Der Provisional-Faktor wirkt pro Spieler NACH der Verteilung. Dadurch
       // ist die Summe der finalen Deltas i. d. R. ungleich 0, obwohl
       // teamDeltaA = −teamDeltaB gilt. Das ist Referenzverhalten.

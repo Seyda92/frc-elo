@@ -5,7 +5,6 @@ import { createPlannedMatch, createPlayerForMatch } from "@/app/admin/actions";
 import { Field, FormStatus, SelectField, SubmitButton } from "@/components/form";
 import { localDateTimeValue } from "@/lib/format";
 import type { PlannedMatchFormPayload } from "@/lib/match-input";
-import { ALLOWED_K_FACTORS, K_FACTOR_LABELS } from "@/lib/match-input";
 import type { ActionResult } from "@/lib/action-result";
 import type { MatchEntryPlayer } from "@/db/queries";
 
@@ -79,7 +78,6 @@ export function TeamBuilderForm({
         return parsed.toISOString();
       })(),
       eventId: (formData.get("event_id") as string) || null,
-      kFactor: (formData.get("k_factor") as string) ?? "",
       name: (formData.get("name") as string) || null,
       refereePlayerId: refereeId || null,
       teamA: teamA.map((p) => ({ playerId: String(p.playerId) })),
@@ -154,13 +152,6 @@ export function TeamBuilderForm({
           label="Event"
           name="event_id"
           options={events.map((e) => ({ value: e.id, label: e.name }))}
-        />
-
-        <SelectField
-          label="Spieltyp"
-          name="k_factor"
-          required
-          options={ALLOWED_K_FACTORS.map((k) => ({ value: String(k), label: K_FACTOR_LABELS[k] }))}
         />
 
         <label className="block">

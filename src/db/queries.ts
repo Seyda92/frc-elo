@@ -18,7 +18,7 @@ import {
 import { initials, type EloPoint } from "@/lib/format";
 import type { EloParams } from "@/lib/elo";
 import type { Role } from "@/lib/session";
-import { V3_MODEL_ID } from "./model.ts";
+import { FALLBACK_RATING, V3_MODEL_ID } from "./model.ts";
 import type {
   Club,
   EventSummary,
@@ -150,7 +150,7 @@ export async function getStartRating(): Promise<number> {
     .select({ startRating: ratingModel.startRating })
     .from(ratingModel)
     .where(eq(ratingModel.modelId, V3_MODEL_ID));
-  return row ? Number(row.startRating) : 200;
+  return row ? Number(row.startRating) : FALLBACK_RATING;
 }
 
 /** Modellparameter für die v3-Berechnung in `src/lib/elo.ts`. */
@@ -214,7 +214,7 @@ export async function getPlayersForMatchEntry(): Promise<MatchEntryPlayer[]> {
     name: row.name,
     jerseyNumber: row.jerseyNumber,
     clubName: row.clubName ?? "—",
-    rating: row.rating != null ? Math.round(Number(row.rating)) : 200,
+    rating: row.rating != null ? Math.round(Number(row.rating)) : FALLBACK_RATING,
     gamesPlayed: row.gamesPlayed ?? 0,
   }));
 }
@@ -282,7 +282,7 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
     name: r.name,
     jerseyNumber: r.jerseyNumber,
     clubName: r.clubName ?? "—",
-    rating: r.rating != null ? Math.round(Number(r.rating)) : 200,
+    rating: r.rating != null ? Math.round(Number(r.rating)) : FALLBACK_RATING,
     gamesPlayed: r.gamesPlayed ?? 0,
   });
 
@@ -352,7 +352,7 @@ export async function getLeaderboard(clubId: number): Promise<Player[]> {
       name: row.name,
       number: row.number,
       clubId: row.clubId != null ? String(row.clubId) : "",
-      elo: row.rating != null ? Math.round(Number(row.rating)) : 200,
+      elo: row.rating != null ? Math.round(Number(row.rating)) : FALLBACK_RATING,
       throws: Number(stats?.throws ?? 0),
       hits: Number(stats?.hits ?? 0),
       bonusBeers: Number(stats?.bonusBeer ?? 0),
@@ -628,7 +628,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
     playerId: String(s.playerId),
     name: s.name,
     number: s.number,
-    elo: s.rating != null ? Math.round(Number(s.rating)) : 200,
+    elo: s.rating != null ? Math.round(Number(s.rating)) : FALLBACK_RATING,
     side: s.side as "A" | "B",
     throws: s.throws ?? 0,
     hits: s.hits ?? 0,
@@ -704,7 +704,7 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
     name: row.name,
     number: row.number,
     clubId: row.clubId != null ? String(row.clubId) : "",
-    elo: row.rating != null ? Math.round(Number(row.rating)) : 200,
+    elo: row.rating != null ? Math.round(Number(row.rating)) : FALLBACK_RATING,
     throws: Number(statRow?.throws ?? 0),
     hits: Number(statRow?.hits ?? 0),
     bonusBeers: Number(statRow?.bonusBeer ?? 0),

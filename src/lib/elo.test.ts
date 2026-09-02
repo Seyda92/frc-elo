@@ -25,9 +25,9 @@ const params: EloParams = {
   teamFactors,
 };
 
-/** Spieler ohne Bonusbier, bereits aus der Provisional-Phase heraus. */
+/** Spieler bereits aus der Provisional-Phase heraus. */
 function player(playerId: number, rating: number, overrides: Partial<EloPlayerInput> = {}) {
-  return { playerId, rating, bonusBeer: 0, gamesPlayed: 20, ...overrides };
+  return { playerId, rating, gamesPlayed: 20, ...overrides };
 }
 
 const CLOSE = 1e-9;
@@ -109,19 +109,15 @@ test("ohne Provisional-Effekt ist auch die Summe der Spieler-Deltas 0", () => {
   assert.ok(Math.abs(sum) < 1e-12);
 });
 
-test("Bonusbier 10 setzt das Delta des Spielers exakt auf 0", () => {
-  const a = [player(1, 200, { bonusBeer: 10 }), player(2, 200)];
-  const b = [player(3, 200), player(4, 200)];
-  const { players } = computeMatchDeltas(a, b, 30, 0, 1, params);
-  assert.equal(players[0].delta, 0);
-  assert.ok(players[1].delta > 0, "Mitspieler bleibt unberührt");
-});
-
-test("Bonusbier dämpft anteilig: 5 Bier halbieren das Delta", () => {
-  const a = [player(1, 200, { bonusBeer: 5 }), player(2, 200)];
-  const b = [player(3, 200), player(4, 200)];
-  const { players } = computeMatchDeltas(a, b, 30, 0, 1, params);
-  assert.ok(Math.abs(players[0].delta - players[1].delta / 2) < CLOSE);
+// Bonusbiere werden weiterhin erfasst und angezeigt, wirken seit 09/2026 aber
+// nicht mehr auf die Wertung. Der Test haelt die Entscheidung fest: Fiele der
+// Daempfungsfaktor versehentlich zurueck in distribute(), schlaegt er an.
+test("Bonusbier beeinflusst das Delta nicht mehr", () => {
+  const a = [player(1, 1000), player(2, 1000)];
+  const b = [player(3, 1000), player(4, 1000)];
+  const { players } = computeMatchDeltas(a, b, 40, 0, 1, params);
+  assert.ok(Math.abs(players[0].delta - players[1].delta) < CLOSE);
+  assert.ok(players[0].delta > 0, "Sieger bekommt ein positives Delta");
 });
 
 test("Provisional-Faktor verstärkt das Delta neuer Spieler dreifach", () => {
@@ -132,8 +128,8 @@ test("Provisional-Faktor verstärkt das Delta neuer Spieler dreifach", () => {
 });
 
 test("ratingBefore + delta === ratingAfter für jede Zeile", () => {
-  const a = [player(1, 233.5, { bonusBeer: 2, gamesPlayed: 3 }), player(2, 198)];
-  const b = [player(3, 205), player(4, 187.25, { bonusBeer: 1 })];
+  const a = [player(1, 233.5, { gamesPlayed: 3 }), player(2, 198)];
+  const b = [player(3, 205), player(4, 187.25)];
   const { players } = computeMatchDeltas(a, b, 20, 2, 0, params);
   for (const p of players) {
     assert.ok(Math.abs(p.ratingBefore + p.delta - p.ratingAfter) < CLOSE);

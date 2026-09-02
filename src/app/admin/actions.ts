@@ -374,17 +374,19 @@ async function applyEloAndPersist(
     for (const row of inserted) ratingByPlayer.set(row.playerId, row);
   }
 
-  const buildEloInput = (playerId: number, bonusBeer: number) => {
+  // bonusBeer geht bewusst NICHT mit ein: es wird weiterhin erfasst und in
+  // match_participation gespeichert, wirkt aber seit 09/2026 nicht mehr auf
+  // die Wertung (siehe distribute() in src/lib/elo.ts).
+  const buildEloInput = (playerId: number) => {
     const row = ratingByPlayer.get(playerId)!;
     return {
       playerId,
       rating: Number(row.rating),
-      bonusBeer,
       gamesPlayed: row.gamesPlayed,
     };
   };
-  const eloTeamA = input.teamA.map((r) => buildEloInput(r.playerId, r.bonusBeer));
-  const eloTeamB = input.teamB.map((r) => buildEloInput(r.playerId, r.bonusBeer));
+  const eloTeamA = input.teamA.map((r) => buildEloInput(r.playerId));
+  const eloTeamB = input.teamB.map((r) => buildEloInput(r.playerId));
 
   // 1. Match-Team-Zeilen — team_size kommt aus der Kaderlänge, nie aus
   //    einem Formularfeld, damit die Spalte nie davon abweichen kann.
