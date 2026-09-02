@@ -6,6 +6,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import {
+  appUser,
   club,
   event,
   match,
@@ -17,9 +18,14 @@ import {
   playerRatingCurrent,
   ratingHistory,
 } from "@/db/generated/schema";
-import { getEloParams, getPlayersForMatchEntry, getStartRating } from "@/db/queries";
+import {
+  getEloParams,
+  getPlayersForMatchEntry,
+  getStartRating,
+  type MatchEntryPlayer,
+} from "@/db/queries";
 import { V3_MODEL_ID } from "@/db/model";
-import { getAdminSession } from "@/lib/auth";
+import { getAdminSession, getOwnerSession } from "@/lib/auth";
 import { computeMatchDeltas, type EloParams } from "@/lib/elo";
 import {
   deriveRatingUpdates,
@@ -29,6 +35,7 @@ import {
   type NormalizedRow,
 } from "@/lib/match-input";
 import type { ActionResult } from "@/lib/action-result";
+import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import {
   isCheckViolation,
   isForeignKeyViolation,
@@ -48,6 +55,11 @@ type Tx = PgTransaction<any, any, any>;
 const NOT_AUTHENTICATED: ActionResult = {
   ok: false,
   error: "Nicht angemeldet. Bitte neu einloggen.",
+};
+
+const NOT_OWNER: ActionResult = {
+  ok: false,
+  error: "Nur der Hauptverantwortliche darf Schiris verwalten.",
 };
 
 function requiredText(formData: FormData, field: string): string | null {
@@ -107,6 +119,57 @@ export async function createClub(
   return { ok: true, message: `Verein „${name}" angelegt.` };
 }
 
+/**
+ * Gemeinsamer Insert-Kern für `createPlayer` und `createPlayerForMatch`.
+ * Enthält die Transaktion unverändert — ohne die player_rating_current-Zeile
+ * taucht der Spieler zwar in Listen auf, hätte aber keinen Rating-Datensatz.
+ * Wirft bei doppelter Rückennummer (isUniqueViolation) — der Aufrufer fängt.
+ */
+async function insertPlayer(input: {
+  displayName: string;
+  clubId: number;
+  jerseyNumber: number | null;
+}): Promise<MatchEntryPlayer> {
+  const startRating = await getStartRating();
+
+  const [row] = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(player)
+      .values(input)
+      .returning({ playerId: player.playerId });
+
+    await tx.insert(playerRatingCurrent).values({
+      playerId: inserted.playerId,
+      modelId: V3_MODEL_ID,
+      rating: String(startRating),
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+    });
+
+    return tx
+      .select({
+        playerId: player.playerId,
+        name: player.displayName,
+        jerseyNumber: player.jerseyNumber,
+        clubName: club.name,
+      })
+      .from(player)
+      .leftJoin(club, eq(club.clubId, player.clubId))
+      .where(eq(player.playerId, inserted.playerId));
+  });
+
+  return {
+    playerId: row.playerId,
+    name: row.name,
+    jerseyNumber: row.jerseyNumber,
+    clubName: row.clubName ?? "—",
+    rating: startRating,
+    gamesPlayed: 0,
+  };
+}
+
 export async function createPlayer(
   _prev: ActionResult | null,
   formData: FormData,
@@ -125,25 +188,7 @@ export async function createPlayer(
   }
 
   try {
-    const startRating = await getStartRating();
-    // Transaktion: ohne die player_rating_current-Zeile taucht der Spieler
-    // zwar in Listen auf, hätte aber keinen Rating-Datensatz.
-    await db.transaction(async (tx) => {
-      const [inserted] = await tx
-        .insert(player)
-        .values({ displayName, clubId, jerseyNumber })
-        .returning({ playerId: player.playerId });
-
-      await tx.insert(playerRatingCurrent).values({
-        playerId: inserted.playerId,
-        modelId: V3_MODEL_ID,
-        rating: String(startRating),
-        gamesPlayed: 0,
-        wins: 0,
-        losses: 0,
-        draws: 0,
-      });
-    });
+    await insertPlayer({ displayName, clubId, jerseyNumber });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return {
@@ -159,6 +204,65 @@ export async function createPlayer(
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true, message: `Spieler „${displayName}" angelegt.` };
+}
+
+export type CreatePlayerForMatchResult =
+  | { ok: true; message: string; player: MatchEntryPlayer }
+  | { ok: false; error: string };
+
+/**
+ * Wie createPlayer, aber für den TeamBuilder: gibt den angelegten Spieler
+ * zurück, statt nur ok/message, damit die aufrufende Komponente ihn ohne
+ * Neuladen an die lokale Kaderliste anhängen kann.
+ *
+ * Kein revalidatePath("/admin/spiele/anlegen") — das würde die Seite neu
+ * rendern und den gerade eingeteilten Kader zerstören, genau den State, den
+ * dieser Umbau retten soll.
+ */
+export async function createPlayerForMatch(input: {
+  displayName: string;
+  clubId: number;
+  jerseyNumber: number | null;
+}): Promise<CreatePlayerForMatchResult> {
+  if (!(await getAdminSession())) {
+    return { ok: false, error: "Nicht angemeldet. Bitte neu einloggen." };
+  }
+
+  const displayName = input.displayName.trim();
+  if (!displayName) return { ok: false, error: "Name ist ein Pflichtfeld." };
+
+  if (!Number.isInteger(input.clubId) || input.clubId <= 0) {
+    return { ok: false, error: "Bitte einen Verein auswählen." };
+  }
+
+  if (
+    input.jerseyNumber !== null &&
+    (!Number.isInteger(input.jerseyNumber) || input.jerseyNumber < 0)
+  ) {
+    return { ok: false, error: "Rückennummer muss eine ganze Zahl ab 0 sein." };
+  }
+
+  let created: MatchEntryPlayer;
+  try {
+    created = await insertPlayer({
+      displayName,
+      clubId: input.clubId,
+      jerseyNumber: input.jerseyNumber,
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return {
+        ok: false,
+        error: "Diese Rückennummer ist im gewählten Verein schon vergeben.",
+      };
+    }
+    console.error("createPlayerForMatch", err);
+    return { ok: false, error: "Spieler konnte nicht angelegt werden." };
+  }
+
+  revalidatePath("/admin/spieler");
+  revalidatePath("/");
+  return { ok: true, message: `Spieler „${displayName}" angelegt.`, player: created };
 }
 
 export async function createEvent(
@@ -583,3 +687,114 @@ export async function scoreMatch(
 
 class PlannedMatchNotFoundError extends Error {}
 class ScoringValidationError extends Error {}
+
+const REFEREE_ROLES = ["admin", "user"] as const;
+type AssignableRefereeRole = (typeof REFEREE_ROLES)[number];
+function isAssignableRefereeRole(value: string): value is AssignableRefereeRole {
+  return (REFEREE_ROLES as readonly string[]).includes(value);
+}
+
+export async function createReferee(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getOwnerSession())) return NOT_OWNER;
+
+  // wie beim Login normalisieren, sonst entsteht ein Konto, mit dem der
+  // Login nie matcht.
+  const username = requiredText(formData, "username")?.toLowerCase() ?? null;
+  if (!username) return { ok: false, error: "Benutzername ist ein Pflichtfeld." };
+
+  const password = (formData.get("password") ?? "").toString();
+  const passwordConfirm = (formData.get("password_confirm") ?? "").toString();
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      ok: false,
+      error: `Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen haben.`,
+    };
+  }
+  if (password !== passwordConfirm) {
+    return { ok: false, error: "Die beiden Passwort-Eingaben stimmen nicht überein." };
+  }
+
+  const roleRaw = requiredText(formData, "role");
+  // owner ist hier nicht wählbar — der Owner-Status wird nicht über dieses
+  // Formular vergeben.
+  if (!roleRaw || !isAssignableRefereeRole(roleRaw)) {
+    return { ok: false, error: "Bitte eine gültige Rolle auswählen." };
+  }
+  const role = roleRaw;
+
+  try {
+    const passwordHash = await hashPassword(password);
+    await db.insert(appUser).values({ username, passwordHash, role });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { ok: false, error: "Diesen Benutzernamen gibt es bereits." };
+    }
+    console.error("createReferee", err); // niemals formData/Passwort loggen
+    return { ok: false, error: "Schiri konnte nicht angelegt werden." };
+  }
+
+  revalidatePath("/admin/schiris");
+  revalidatePath("/admin");
+  return { ok: true, message: `Schiri „${username}" angelegt.` };
+}
+
+export async function setRefereeRole(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await getOwnerSession();
+  if (!session) return NOT_OWNER;
+
+  const userId = requiredId(formData, "user_id");
+  if (userId === null) return { ok: false, error: "Ungültiger Benutzer." };
+
+  const roleRaw = requiredText(formData, "role");
+  if (!roleRaw || !isAssignableRefereeRole(roleRaw)) {
+    return { ok: false, error: "Bitte eine gültige Rolle auswählen." };
+  }
+  const role = roleRaw;
+
+  if (userId === session.userId) {
+    return { ok: false, error: "Die eigene Rolle kann nicht geändert werden." };
+  }
+
+  try {
+    await db.update(appUser).set({ role }).where(eq(appUser.userId, userId));
+  } catch (err) {
+    console.error("setRefereeRole", err);
+    return { ok: false, error: "Rolle konnte nicht geändert werden." };
+  }
+
+  revalidatePath("/admin/schiris");
+  return { ok: true, message: "Rolle geändert." };
+}
+
+export async function setRefereeActive(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await getOwnerSession();
+  if (!session) return NOT_OWNER;
+
+  const userId = requiredId(formData, "user_id");
+  if (userId === null) return { ok: false, error: "Ungültiger Benutzer." };
+
+  const isActive = formData.get("is_active") === "1" ? 1 : 0;
+
+  if (userId === session.userId) {
+    return { ok: false, error: "Das eigene Konto kann nicht deaktiviert werden." };
+  }
+
+  try {
+    await db.update(appUser).set({ isActive }).where(eq(appUser.userId, userId));
+  } catch (err) {
+    console.error("setRefereeActive", err);
+    return { ok: false, error: "Status konnte nicht geändert werden." };
+  }
+
+  revalidatePath("/admin/schiris");
+  return { ok: true, message: isActive ? "Schiri aktiviert." : "Schiri deaktiviert." };
+}

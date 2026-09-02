@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { createPlannedMatch } from "@/app/admin/actions";
+import { createPlannedMatch, createPlayerForMatch } from "@/app/admin/actions";
 import { Field, FormStatus, SelectField, SubmitButton } from "@/components/form";
 import { localDateTimeValue } from "@/lib/format";
 import type { PlannedMatchFormPayload } from "@/lib/match-input";
@@ -14,9 +14,11 @@ type Side = "A" | "B" | null;
 export function TeamBuilderForm({
   players,
   events,
+  clubs,
 }: {
   players: MatchEntryPlayer[];
   events: { id: string; name: string }[];
+  clubs: { id: string; name: string }[];
 }) {
   // Bei Erfolg leitet createPlannedMatch serverseitig direkt zum Bewerten
   // weiter (redirect() in der Action) — kein Client-Redirect hier nötig.
@@ -25,6 +27,10 @@ export function TeamBuilderForm({
     null,
   );
 
+  // Roster als State statt reines Prop: ein im Anlege-Block neu erfasster
+  // Spieler wird angehängt, ohne die Seite neu zu laden — sonst ginge die
+  // bereits eingeteilte Aufstellung verloren.
+  const [roster, setRoster] = useState<MatchEntryPlayer[]>(players);
   const [sides, setSides] = useState<Map<number, Side>>(
     () => new Map(players.map((p) => [p.playerId, null])),
   );
@@ -48,11 +54,20 @@ export function TeamBuilderForm({
     }
   }
 
-  const pool = players.filter((p) => sides.get(p.playerId) === null);
-  const teamA = players.filter((p) => sides.get(p.playerId) === "A");
-  const teamB = players.filter((p) => sides.get(p.playerId) === "B");
+  function handlePlayerCreated(newPlayer: MatchEntryPlayer) {
+    setRoster((prev) => [...prev, newPlayer]);
+    setSides((prev) => {
+      const next = new Map(prev);
+      next.set(newPlayer.playerId, null);
+      return next;
+    });
+  }
+
+  const pool = roster.filter((p) => sides.get(p.playerId) === null);
+  const teamA = roster.filter((p) => sides.get(p.playerId) === "A");
+  const teamB = roster.filter((p) => sides.get(p.playerId) === "B");
   const assignedIds = new Set([...teamA, ...teamB].map((p) => p.playerId));
-  const refereeOptions = players
+  const refereeOptions = roster
     .filter((p) => !assignedIds.has(p.playerId))
     .map((p) => ({ value: String(p.playerId), label: p.name }));
 
@@ -87,6 +102,8 @@ export function TeamBuilderForm({
         <TeamColumn title="Team A" accent="amber" side="A" roster={teamA} onSetSide={setSide} />
         <TeamColumn title="Team B" accent="foam" side="B" roster={teamB} onSetSide={setSide} />
       </div>
+
+      {clubs.length > 0 && <NewPlayerBlock clubs={clubs} onCreated={handlePlayerCreated} />}
 
       <div className="border border-line">
         <header className="border-b border-line px-4 py-3">
@@ -169,6 +186,144 @@ export function TeamBuilderForm({
 
       <SubmitButton pending={pending}>Match anlegen</SubmitButton>
     </form>
+  );
+}
+
+/**
+ * Eigenständiger Block außerhalb des Match-Formulars — HTML erlaubt keine
+ * verschachtelten <form>-Elemente. Ruft die Action direkt mit einem Objekt
+ * auf (kein FormData/useActionState), damit kein zweites <form> nötig ist.
+ * Fehler werden lokal angezeigt, nicht im globalen Status des Match-Formulars.
+ */
+function NewPlayerBlock({
+  clubs,
+  onCreated,
+}: {
+  clubs: { id: string; name: string }[];
+  onCreated: (player: MatchEntryPlayer) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [clubId, setClubId] = useState("");
+  const [jerseyNumber, setJerseyNumber] = useState("");
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<ActionResult | null>(null);
+
+  async function handleCreate() {
+    const name = displayName.trim();
+    if (!name || !clubId) {
+      setResult({ ok: false, error: "Name und Verein sind Pflichtfelder." });
+      return;
+    }
+    const parsedClubId = Number(clubId);
+    const parsedJerseyNumber = jerseyNumber.trim() === "" ? null : Number(jerseyNumber);
+    if (parsedJerseyNumber !== null && (!Number.isInteger(parsedJerseyNumber) || parsedJerseyNumber < 0)) {
+      setResult({ ok: false, error: "Rückennummer muss eine ganze Zahl ab 0 sein." });
+      return;
+    }
+
+    setPending(true);
+    setResult(null);
+    try {
+      const res = await createPlayerForMatch({
+        displayName: name,
+        clubId: parsedClubId,
+        jerseyNumber: parsedJerseyNumber,
+      });
+      setResult(res);
+      if (res.ok) {
+        onCreated(res.player);
+        setDisplayName("");
+        setClubId("");
+        setJerseyNumber("");
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="min-h-10 border border-line px-3 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+      >
+        + Spieler anlegen
+      </button>
+    );
+  }
+
+  return (
+    <div className="border border-line bg-asphalt-raised/40 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-display text-lg text-foam-muted">Spieler anlegen</h3>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs uppercase tracking-[0.14em] text-foam-muted hover:text-amber"
+        >
+          Schließen
+        </button>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        <FormStatus state={result} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="block">
+            <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+              Name *
+            </span>
+            <input
+              className="mt-1 w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Torben Reifen"
+            />
+          </label>
+
+          <label className="block">
+            <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+              Verein *
+            </span>
+            <select
+              className="mt-1 w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+              value={clubId}
+              onChange={(e) => setClubId(e.target.value)}
+            >
+              <option value="">– bitte wählen –</option>
+              {clubs.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+              Rückennummer
+            </span>
+            <input
+              className="mt-1 w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+              type="number"
+              min={0}
+              value={jerseyNumber}
+              onChange={(e) => setJerseyNumber(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <button
+          type="button"
+          disabled={pending}
+          onClick={handleCreate}
+          className="min-h-12 bg-amber px-5 py-3 font-display uppercase tracking-wide text-asphalt transition hover:bg-amber-hot disabled:opacity-50"
+        >
+          {pending ? "Speichert…" : "Spieler anlegen"}
+        </button>
+      </div>
+    </div>
   );
 }
 

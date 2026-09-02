@@ -1,11 +1,15 @@
 import Link from "next/link";
-import { getAllEvents, getPlayersForMatchEntry } from "@/db/queries";
+import { getAllEvents, getClubs, getPlayersForMatchEntry } from "@/db/queries";
 import { TeamBuilderForm } from "./TeamBuilderForm";
 
 export const metadata = { title: "Match anlegen" };
 
 export default async function CreatePlannedMatchPage() {
-  const [players, events] = await Promise.all([getPlayersForMatchEntry(), getAllEvents()]);
+  const [players, events, clubs] = await Promise.all([
+    getPlayersForMatchEntry(),
+    getAllEvents(),
+    getClubs(),
+  ]);
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
@@ -33,10 +37,13 @@ export default async function CreatePlannedMatchPage() {
         <section className="border border-line bg-asphalt-raised/40">
           {players.length < 2 ? (
             <p className="px-4 py-4 text-sm text-foam-muted sm:px-5">
-              Es müssen mindestens zwei aktive Spieler angelegt sein.
+              Es müssen mindestens zwei aktive Spieler angelegt sein.{" "}
+              <Link href="/admin/spieler" className="text-amber hover:text-amber-hot">
+                Spieler anlegen →
+              </Link>
             </p>
           ) : (
-            <TeamBuilderForm players={players} events={events} />
+            <TeamBuilderForm players={players} events={events} clubs={clubs} />
           )}
         </section>
       </div>

@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, integer, text, date, unique, check, numeric, index, timestamp, primaryKey } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, integer, text, date, unique, check, numeric, index, timestamp, primaryKey, uniqueIndex } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -174,14 +174,16 @@ export const appUser = pgTable("app_user", {
 	passwordHash: text("password_hash").notNull(),
 	role: text().default('user').notNull(),
 	playerId: integer("player_id"),
+	isActive: integer("is_active").default(1).notNull(),
 }, (table) => [
+	uniqueIndex("app_user_single_owner").using("btree", table.role.asc().nullsLast().op("text_ops")).where(sql`(role = 'owner'::text)`),
 	foreignKey({
 			columns: [table.playerId],
 			foreignColumns: [player.playerId],
 			name: "app_user_player_id_fkey"
 		}),
 	unique("app_user_username_key").on(table.username),
-	check("app_user_role_check", sql`role = ANY (ARRAY['admin'::text, 'user'::text])`),
+	check("app_user_role_check", sql`role = ANY (ARRAY['owner'::text, 'admin'::text, 'user'::text])`),
 ]);
 
 export const teamFactor = pgTable("team_factor", {

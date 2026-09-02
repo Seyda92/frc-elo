@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { db } from "./client.ts";
 import {
+  appUser,
   club,
   event,
   match,
@@ -16,6 +17,7 @@ import {
 } from "./generated/schema.ts";
 import { initials, type EloPoint } from "@/lib/format";
 import type { EloParams } from "@/lib/elo";
+import type { Role } from "@/lib/session";
 import { V3_MODEL_ID } from "./model.ts";
 import type {
   Club,
@@ -62,6 +64,33 @@ export async function getClubs(): Promise<Club[]> {
     id: String(row.clubId),
     name: row.name,
     location: row.city ?? "",
+  }));
+}
+
+export type AppUser = {
+  userId: number;
+  username: string;
+  role: Role;
+  isActive: boolean;
+};
+
+/** Für /admin/schiris — alle Konten, unabhängig von Rolle/Status. */
+export async function getAppUsers(): Promise<AppUser[]> {
+  const rows = await db
+    .select({
+      userId: appUser.userId,
+      username: appUser.username,
+      role: appUser.role,
+      isActive: appUser.isActive,
+    })
+    .from(appUser)
+    .orderBy(asc(appUser.username));
+
+  return rows.map((row) => ({
+    userId: row.userId,
+    username: row.username,
+    role: row.role as Role,
+    isActive: row.isActive === 1,
   }));
 }
 

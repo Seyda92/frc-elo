@@ -12,6 +12,9 @@ import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:cry
 
 const ALGORITHM = "scrypt";
 
+/** Gemeinsame Mindestlänge für alle Passwort-Eingabewege (Login-Anlage, Schiri-Verwaltung). */
+export const MIN_PASSWORD_LENGTH = 12;
+
 /**
  * N=2^15 statt der OWASP-Empfehlung 2^17: bei N=2^17 wären das 128 MiB
  * Speicher pro Login-Versuch. Ohne Rate-Limiting (siehe Plan: das gehört in

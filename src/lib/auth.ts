@@ -28,23 +28,48 @@ export async function getSession(): Promise<Session | null> {
  * zustandslosen Session: ohne diesen Check behielte ein gelöschter oder
  * degradierter Benutzer bis zu SESSION_TTL_SECONDS Zugriff. Läuft nur auf
  * Admin-Seiten, kostet also nichts auf dem öffentlichen Leaderboard.
+ *
+ * `owner` schließt `admin` fachlich ein — akzeptiert wird daher "admin ODER
+ * owner", zusätzlich muss `is_active` in der frisch gelesenen Zeile gesetzt
+ * sein.
  */
 export async function getAdminSession(): Promise<Session | null> {
   const session = await getSession();
-  if (!session || session.role !== "admin") return null;
+  if (!session || (session.role !== "admin" && session.role !== "owner")) return null;
 
   const [row] = await db
-    .select({ role: appUser.role })
+    .select({ role: appUser.role, isActive: appUser.isActive })
     .from(appUser)
     .where(eq(appUser.userId, session.userId));
 
-  if (!row || row.role !== "admin") return null;
+  if (!row || (row.role !== "admin" && row.role !== "owner") || row.isActive !== 1) return null;
   return session;
 }
 
 /** Für Server Components/Layouts: leitet auf /login um statt null zurückzugeben. */
 export async function requireAdmin(): Promise<Session> {
   const session = await getAdminSession();
+  if (!session) redirect("/login");
+  return session;
+}
+
+/** Wie getAdminSession, aber nur für den Hauptverantwortlichen (`owner`). */
+export async function getOwnerSession(): Promise<Session | null> {
+  const session = await getSession();
+  if (!session || session.role !== "owner") return null;
+
+  const [row] = await db
+    .select({ role: appUser.role, isActive: appUser.isActive })
+    .from(appUser)
+    .where(eq(appUser.userId, session.userId));
+
+  if (!row || row.role !== "owner" || row.isActive !== 1) return null;
+  return session;
+}
+
+/** Für Server Components/Layouts: leitet auf /login um statt null zurückzugeben. */
+export async function requireOwner(): Promise<Session> {
+  const session = await getOwnerSession();
   if (!session) redirect("/login");
   return session;
 }

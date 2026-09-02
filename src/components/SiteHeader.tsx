@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
+import type { Role } from "@/lib/session";
 
 const publicLinks = [
   { href: "/", label: "Leaderboard" },
   { href: "/live", label: "Live" },
 ];
 
-type User = { username: string; role: "admin" | "user" };
+type User = { username: string; role: Role };
 
 export function SiteHeader({ user }: { user: User | null }) {
   const pathname = usePathname();
   const links =
-    user?.role === "admin" ? [...publicLinks, { href: "/admin", label: "Schiri" }] : publicLinks;
+    user?.role === "admin" || user?.role === "owner"
+      ? [...publicLinks, { href: "/admin", label: "Schiri" }]
+      : publicLinks;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-asphalt/95 backdrop-blur-md">

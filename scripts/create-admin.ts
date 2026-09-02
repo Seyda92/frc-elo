@@ -9,10 +9,9 @@
 import * as readline from "node:readline/promises";
 import { db, pool } from "../src/db/client.ts";
 import { appUser } from "../src/db/generated/schema.ts";
-import { hashPassword } from "../src/lib/password.ts";
+import { hashPassword, MIN_PASSWORD_LENGTH } from "../src/lib/password.ts";
 import { isUniqueViolation } from "../src/lib/pg-errors.ts";
 
-const MIN_PASSWORD_LENGTH = 12;
 // Als Zeichencodes statt Literalen, damit Steuerzeichen im Quelltext nicht
 // von Editor/Tooling verschluckt oder verstümmelt werden.
 const ENTER_CR = String.fromCharCode(13);
@@ -100,10 +99,12 @@ async function main() {
       return;
     }
 
-    const roleRaw = (await ask(rl, "Rolle [admin/user] (Enter = admin): ")).trim().toLowerCase();
+    const roleRaw = (await ask(rl, "Rolle [owner/admin/user] (Enter = admin): "))
+      .trim()
+      .toLowerCase();
     role = roleRaw === "" ? "admin" : roleRaw;
-    if (role !== "admin" && role !== "user") {
-      console.error('Rolle muss "admin" oder "user" sein.');
+    if (role !== "owner" && role !== "admin" && role !== "user") {
+      console.error('Rolle muss "owner", "admin" oder "user" sein.');
       process.exitCode = 1;
       return;
     }

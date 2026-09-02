@@ -1,14 +1,17 @@
 import Link from "next/link";
-import { getAllEvents, getAllPlayers, getClubs, getMatchCount } from "@/db/queries";
+import { requireAdmin } from "@/lib/auth";
+import { getAllEvents, getAllPlayers, getAppUsers, getClubs, getMatchCount } from "@/db/queries";
 
 export const metadata = { title: "Admin" };
 
 export default async function AdminPage() {
-  const [clubs, players, events, matchCount] = await Promise.all([
+  const session = await requireAdmin();
+  const [clubs, players, events, matchCount, users] = await Promise.all([
     getClubs(),
     getAllPlayers(),
     getAllEvents(),
     getMatchCount(),
+    session.role === "owner" ? getAppUsers() : Promise.resolve(null),
   ]);
 
   const sections = [
@@ -16,6 +19,7 @@ export default async function AdminPage() {
     { href: "/admin/spieler", label: "Spieler", count: players.length },
     { href: "/admin/events", label: "Events", count: events.length },
     { href: "/admin/spiele", label: "Spiele", count: matchCount },
+    ...(users !== null ? [{ href: "/admin/schiris", label: "Schiris", count: users.length }] : []),
   ];
 
   return (

@@ -22,10 +22,15 @@ CREATE TABLE app_user (
     user_id       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    role          TEXT NOT NULL DEFAULT 'user',     -- 'admin' | 'user'
+    role          TEXT NOT NULL DEFAULT 'user',     -- 'owner' | 'admin' | 'user'
     player_id     INTEGER REFERENCES player(player_id),  -- optional verknüpft
-    CHECK (role IN ('admin','user'))
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    CHECK (role IN ('owner','admin','user'))
 );
+
+-- Genau ein owner. Partieller UNIQUE-Index statt CHECK, weil CHECK nicht
+-- ueber Zeilen hinweg pruefen kann.
+CREATE UNIQUE INDEX app_user_single_owner ON app_user ((role)) WHERE role = 'owner';
 
 CREATE TABLE event (
     event_id     INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

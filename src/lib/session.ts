@@ -11,7 +11,12 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * (Server-only) verbindet dies mit `next/headers`.
  */
 
-export type Role = "admin" | "user";
+export type Role = "owner" | "admin" | "user";
+
+const ROLES: readonly Role[] = ["owner", "admin", "user"];
+function isRole(value: unknown): value is Role {
+  return typeof value === "string" && (ROLES as readonly string[]).includes(value);
+}
 
 export type Session = {
   userId: number;
@@ -112,7 +117,7 @@ export function verifySession(token: string | undefined | null): Session | null 
   // Rolle wird unabhängig von der DB-CHECK-Constraint noch einmal geprüft —
   // ein Rollen-String darf nie ungeprüft in eine Berechtigungsentscheidung
   // fließen.
-  if (p.role !== "admin" && p.role !== "user") return null;
+  if (!isRole(p.role)) return null;
   if (typeof p.exp !== "number" || !Number.isFinite(p.exp)) return null;
 
   if (p.exp <= Math.floor(Date.now() / 1000)) return null;

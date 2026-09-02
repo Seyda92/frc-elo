@@ -23,13 +23,14 @@ export async function login(
     return { ok: false, error: "Benutzername und Passwort sind Pflichtfelder." };
   }
 
-  let user: { userId: number; role: string; passwordHash: string } | undefined;
+  let user: { userId: number; role: string; passwordHash: string; isActive: number } | undefined;
   try {
     [user] = await db
       .select({
         userId: appUser.userId,
         role: appUser.role,
         passwordHash: appUser.passwordHash,
+        isActive: appUser.isActive,
       })
       .from(appUser)
       .where(eq(appUser.username, username))
@@ -46,7 +47,15 @@ export async function login(
     ? await verifyPassword(password, user.passwordHash)
     : await verifyPassword(password, await getDummyHash());
 
-  if (!user || !passwordOk || (user.role !== "admin" && user.role !== "user")) {
+  // Ein deaktiviertes Konto bekommt dieselbe generische Fehlermeldung wie ein
+  // falsches Passwort — sonst würde "Konto deaktiviert" die Kontoexistenz
+  // verraten.
+  if (
+    !user ||
+    !passwordOk ||
+    (user.role !== "admin" && user.role !== "user" && user.role !== "owner") ||
+    user.isActive !== 1
+  ) {
     return GENERIC_ERROR;
   }
 
@@ -54,9 +63,9 @@ export async function login(
 
   // redirect() wirft intern (NEXT_REDIRECT) und muss außerhalb jedes
   // try/catch stehen, sonst verschluckt der Catch die Weiterleitung.
-  // Nur admin-Konten haben in /admin ein Ziel — ein user-Konto würde sonst
-  // in einer Schleife /admin -> requireAdmin -> /login landen.
-  redirect(user.role === "admin" ? "/admin" : "/");
+  // Nur admin/owner-Konten haben in /admin ein Ziel — ein user-Konto würde
+  // sonst in einer Schleife /admin -> requireAdmin -> /login landen.
+  redirect(user.role === "admin" || user.role === "owner" ? "/admin" : "/");
 }
 
 export async function logout(): Promise<void> {

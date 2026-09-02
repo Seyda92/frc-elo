@@ -73,6 +73,24 @@ test("fehlerhafte Tokenformen werden abgelehnt", () => {
   });
 });
 
+test("sign -> verify Rundreise erhält die Rolle owner", () => {
+  withSecret(SECRET_A, () => {
+    const token = signSession({ userId: 1, username: "chef", role: "owner" });
+    const session = verifySession(token);
+    assert.ok(session);
+    assert.equal(session.role, "owner");
+  });
+});
+
+test("korrekt signiertes Token mit Rolle superadmin wird abgelehnt", () => {
+  withSecret(SECRET_A, () => {
+    const payload = { v: 1, uid: 1, usr: "a", role: "superadmin", exp: Math.floor(Date.now() / 1000) + 60 };
+    const payloadB64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+    const signature = createHmac("sha256", SECRET_A).update(payloadB64).digest("base64url");
+    assert.equal(verifySession(`${payloadB64}.${signature}`), null);
+  });
+});
+
 test("korrekt signiertes Token mit ungültiger Rolle wird trotzdem abgelehnt", () => {
   withSecret(SECRET_A, () => {
     // Direkt eine Payload mit unzulässiger Rolle bauen und selbst signieren,

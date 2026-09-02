@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hashPassword, verifyPassword } from "./password.ts";
+import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "./password.ts";
 
 // Billige Parameter, damit die Suite schnell bleibt.
 const CHEAP = { N: 1024, r: 1, p: 1 };
@@ -61,4 +61,8 @@ test("ein mit expliziten Nicht-Standard-Parametern gehashtes Passwort verifizier
 test("N muss eine Zweierpotenz sein, sonst false", async () => {
   const result = await verifyPassword("x", "scrypt$1000$1$1$AAAA$AAAA");
   assert.equal(result, false);
+});
+
+test("MIN_PASSWORD_LENGTH ist auf 12 festgelegt", () => {
+  assert.equal(MIN_PASSWORD_LENGTH, 12);
 });
