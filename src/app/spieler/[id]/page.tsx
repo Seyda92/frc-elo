@@ -85,11 +85,11 @@ export default async function PlayerPage({ params }: Props) {
         <section className="border border-line bg-asphalt-raised/40">
           <header className="border-b border-line px-4 py-4 sm:px-5">
             <h2 className="font-display text-2xl tracking-tight text-amber sm:text-3xl">
-              Saison-Stats
+              Karriere-Stats
             </h2>
             <p className="mt-1 text-sm text-foam-muted">
               {eloDelta >= 0 ? "+" : ""}
-              {eloDelta} ELO seit Saisonstart
+              {eloDelta} ELO seit dem ersten Spiel
             </p>
           </header>
           <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:p-4">

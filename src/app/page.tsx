@@ -25,7 +25,7 @@ export default async function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-amber">
-              Saison 2026 · Rangliste
+              Rangliste
             </p>
             <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
               1. FRC Leaderboard
