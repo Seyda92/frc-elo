@@ -9,12 +9,12 @@ import {
 import {
   formatDate,
   formatDateTime,
-  hitRate,
   LEADERBOARD_SORT_KEYS,
   SORT_DIRECTIONS,
   type LeaderboardSortKey,
   type SortDirection,
 } from "@/lib/format";
+import { LeaderboardRow } from "@/components/LeaderboardRow";
 
 const SORT_LABELS: Record<LeaderboardSortKey, string> = {
   elo: "Elo",
@@ -114,49 +114,7 @@ export default async function HomePage({ searchParams }: Props) {
 
           <ul className="divide-y divide-line rank-stagger">
             {ranked.map((player, index) => (
-              <li
-                key={player.id}
-                className="animate-[rank-in_0.55s_cubic-bezier(0.22,1,0.36,1)_both] px-3 py-4 sm:px-5"
-              >
-                <Link
-                  href={`/spieler/${player.id}`}
-                  className="group block transition hover:bg-rubber/20"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-12 w-12 shrink-0 items-center justify-center bg-rubber font-display text-amber">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="font-display text-xl text-foam group-hover:text-amber sm:text-2xl">
-                          {player.name}
-                          {player.alias ? (
-                            <span className="ml-2 text-sm font-normal text-foam-muted">
-                              ({player.alias})
-                            </span>
-                          ) : null}
-                        </p>
-                        <p className="text-sm text-foam-muted">
-                          {player.number != null ? `#${player.number} · ` : ""}ELO {player.elo}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="font-display text-3xl text-foam sm:text-4xl">
-                      {player.elo}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <StatCell label="Quote" value={`${hitRate(player)}%`} />
-                    <StatCell label="Bonusbiere" value={player.bonusBeers} highlight />
-                    <StatCell label="Spiele" value={player.games} />
-                    <StatCell
-                      label="W / L"
-                      value={`${player.wins}/${player.losses}`}
-                    />
-                  </div>
-                </Link>
-              </li>
+              <LeaderboardRow key={player.id} player={player} rank={index + 1} />
             ))}
           </ul>
         </section>
@@ -252,31 +210,6 @@ export default async function HomePage({ searchParams }: Props) {
 
         <p className="text-center text-sm text-foam-muted">{club?.name}</p>
       </div>
-    </div>
-  );
-}
-
-function StatCell({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string | number;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="border border-line bg-asphalt/60 p-2">
-      <p className="text-center text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
-        {label}
-      </p>
-      <p
-        className={`mt-1 text-center font-display text-2xl ${
-          highlight ? "text-signal-yellow" : "text-foam"
-        }`}
-      >
-        {value}
-      </p>
     </div>
   );
 }
