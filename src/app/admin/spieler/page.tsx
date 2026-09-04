@@ -1,11 +1,25 @@
 import Link from "next/link";
-import { getAllPlayers, getClubs } from "@/db/queries";
+import { getAdminSession } from "@/lib/auth";
+import { getAllPlayers, getAppUsers, getClubs } from "@/db/queries";
 import { PlayerForm } from "./PlayerForm";
+import { RefereeQuickForm } from "./RefereeQuickForm";
 
 export const metadata = { title: "Spieler" };
 
 export default async function AdminPlayersPage() {
-  const [clubs, players] = await Promise.all([getClubs(), getAllPlayers()]);
+  const session = await getAdminSession();
+  const isOwner = session?.role === "owner";
+  const [clubs, players, users] = await Promise.all([
+    getClubs(),
+    getAllPlayers(),
+    // Nur geladen, wenn tatsaechlich benoetigt (Owner sieht den
+    // "Zu Schiri machen"-Button) - normale Schiris brauchen die Liste
+    // aller Konten hier nicht.
+    isOwner ? getAppUsers() : Promise.resolve([]),
+  ]);
+  const linkedPlayerIds = new Set(
+    users.map((u) => u.playerId).filter((id): id is number => id != null),
+  );
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
@@ -75,12 +89,22 @@ export default async function AdminPlayersPage() {
                       <p className="text-sm text-foam-muted">{player.clubName}</p>
                     </div>
                   </Link>
-                  <Link
-                    href={`/admin/spieler/${player.id}/bearbeiten`}
-                    className="border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
-                  >
-                    Bearbeiten
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/admin/spieler/${player.id}/bearbeiten`}
+                      className="border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+                    >
+                      Bearbeiten
+                    </Link>
+                    {isOwner &&
+                      (linkedPlayerIds.has(Number(player.id)) ? (
+                        <span className="px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted">
+                          Bereits Schiri
+                        </span>
+                      ) : (
+                        <RefereeQuickForm playerId={player.id} playerName={player.name} />
+                      ))}
+                  </div>
                 </li>
               ))}
             </ul>

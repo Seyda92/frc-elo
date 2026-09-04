@@ -837,6 +837,59 @@ export async function createReferee(
   return { ok: true, message: `Schiri „${username}" angelegt.` };
 }
 
+/**
+ * Kurzweg von der Spielerliste aus: legt direkt ein Schiri-Konto (Rolle
+ * admin) an, das mit diesem Spieler verknüpft ist — playerId kommt fest
+ * aus dem aufrufenden Formular (RefereeQuickForm in admin/spieler), nicht
+ * aus einem Dropdown wie bei createReferee. Rolle ist bewusst nicht
+ * wählbar, das deckt genau den Anwendungsfall "aus Spieler X einen Schiri
+ * machen" ab; für "Nutzer ohne Schiri-Rechte" bleibt createReferee.
+ */
+export async function createRefereeFromPlayer(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getOwnerSession())) return NOT_OWNER;
+
+  const playerId = requiredId(formData, "player_id");
+  if (playerId === null) return { ok: false, error: "Ungültiger Spieler." };
+
+  const username = requiredText(formData, "username")?.toLowerCase() ?? null;
+  if (!username) return { ok: false, error: "Benutzername ist ein Pflichtfeld." };
+
+  const password = (formData.get("password") ?? "").toString();
+  const passwordConfirm = (formData.get("password_confirm") ?? "").toString();
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      ok: false,
+      error: `Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen haben.`,
+    };
+  }
+  if (password !== passwordConfirm) {
+    return { ok: false, error: "Die beiden Passwort-Eingaben stimmen nicht überein." };
+  }
+
+  try {
+    const passwordHash = await hashPassword(password);
+    await db.insert(appUser).values({ username, passwordHash, role: "admin", playerId });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { ok: false, error: "Diesen Benutzernamen gibt es bereits." };
+    }
+    if (isForeignKeyViolation(err)) {
+      return { ok: false, error: "Spieler existiert nicht mehr. Bitte Seite neu laden." };
+    }
+    console.error("createRefereeFromPlayer", err); // niemals formData/Passwort loggen
+    return { ok: false, error: "Schiri konnte nicht angelegt werden." };
+  }
+
+  revalidatePath("/admin/spieler");
+  revalidatePath("/admin/schiris");
+  revalidatePath("/admin");
+  revalidatePath("/admin/spiele/anlegen");
+  return { ok: true, message: `Schiri „${username}" angelegt.` };
+}
+
 export async function setRefereeRole(
   _prev: ActionResult | null,
   formData: FormData,
