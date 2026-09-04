@@ -42,5 +42,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/((?!_next/static|_next/image|favicon.ico).*)",
+  // logo.png zusaetzlich ausgenommen: Next.js' <Image>-Komponente ruft
+  // /logo.png intern ueber den _next/image-Optimizer ab, ohne dabei
+  // Basic-Auth-Credentials mitzuschicken - ohne diese Ausnahme bekommt der
+  // Optimizer ein 401 (Text statt Bild) und das Logo bleibt leer, obwohl der
+  // Browser selbst laengst angemeldet ist. Unbedenklich auszunehmen, da es
+  // ein oeffentliches Asset ohne schuetzenswerten Inhalt ist.
+  matcher: "/((?!_next/static|_next/image|favicon.ico|logo.png).*)",
 };
