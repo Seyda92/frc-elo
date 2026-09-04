@@ -59,6 +59,12 @@ export function SiteHeader({ user }: { user: User | null }) {
               <span className="hidden px-2 text-xs uppercase tracking-[0.14em] text-foam-muted sm:inline">
                 {user.username}
               </span>
+              <Link
+                href="/passwort-aendern"
+                className="min-h-10 border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber sm:px-4"
+              >
+                Passwort
+              </Link>
               <form action={logout}>
                 <button
                   type="submit"
