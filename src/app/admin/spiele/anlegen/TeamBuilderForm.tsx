@@ -80,8 +80,13 @@ export function TeamBuilderForm({
   const assignedIds = new Set([...teamA, ...teamB].map((p) => p.playerId));
 
   const trimmedFilter = poolFilter.trim().toLowerCase();
-  const visiblePool =
-    trimmedFilter === ""
+  // Easteregg: unabhängig vom sonstigen Filter-Ergebnis ein zufälliger
+  // Spieler statt einer (vermutlich leeren) echten Trefferliste.
+  const visiblePool = trimmedFilter.includes("hurensohn")
+    ? pool.length > 0
+      ? [pool[Math.floor(Math.random() * pool.length)]]
+      : []
+    : trimmedFilter === ""
       ? pool
       : pool.filter(
           (p) =>

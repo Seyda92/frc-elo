@@ -136,20 +136,6 @@
     }
   }
 
-  .texture-grain {
-    background-image:
-      radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.03) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 80% 40%, rgba(255, 255, 255, 0.025) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 40% 80%, rgba(0, 0, 0, 0.25) 0 1px, transparent 1.5px);
-    background-size: 6px 6px, 9px 9px, 7px 7px;
-  }
-
-  .tire-ring {
-    background:
-      radial-gradient(circle at center, transparent 42%, #0a0908 43%, #0a0908 48%, transparent 49%),
-      repeating-conic-gradient(from 0deg, #1a1815 0deg 8deg, #0f0e0c 8deg 16deg);
-  }
-
   .text-balance {
     text-wrap: balance;
   }
