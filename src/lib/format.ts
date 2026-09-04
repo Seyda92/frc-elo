@@ -14,6 +14,49 @@ export function hitRate(stats: { throws: number; hits: number }): number {
   return Math.round((stats.hits / stats.throws) * 100);
 }
 
+export const LEADERBOARD_SORT_KEYS = ["elo", "quote", "games", "bonusBeers", "wins"] as const;
+export type LeaderboardSortKey = (typeof LEADERBOARD_SORT_KEYS)[number];
+export const SORT_DIRECTIONS = ["asc", "desc"] as const;
+export type SortDirection = (typeof SORT_DIRECTIONS)[number];
+
+type SortablePlayer = {
+  elo: number;
+  throws: number;
+  hits: number;
+  games: number;
+  bonusBeers: number;
+  wins: number;
+};
+
+function leaderboardSortValue(player: SortablePlayer, sortBy: LeaderboardSortKey): number {
+  switch (sortBy) {
+    case "elo":
+      return player.elo;
+    case "quote":
+      return hitRate(player);
+    case "games":
+      return player.games;
+    case "bonusBeers":
+      return player.bonusBeers;
+    case "wins":
+      return player.wins;
+  }
+}
+
+/** Sortiert eine Kopie der Liste nach dem gewählten Kriterium. Reine
+ *  Funktion (kein DB-Zugriff), damit sie isoliert testbar ist - die
+ *  eigentliche Query in getLeaderboard() liefert nur die Rohdaten. */
+export function sortLeaderboard<T extends SortablePlayer>(
+  players: T[],
+  sortBy: LeaderboardSortKey,
+  direction: SortDirection,
+): T[] {
+  const factor = direction === "asc" ? 1 : -1;
+  return [...players].sort(
+    (a, b) => factor * (leaderboardSortValue(a, sortBy) - leaderboardSortValue(b, sortBy)),
+  );
+}
+
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",

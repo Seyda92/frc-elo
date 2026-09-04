@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
@@ -7,6 +8,7 @@ import type { Role } from "@/lib/session";
 
 const publicLinks = [
   { href: "/", label: "Leaderboard" },
+  { href: "/spiele", label: "Spiele" },
 ];
 
 type User = { username: string; role: Role };
@@ -19,12 +21,19 @@ export function SiteHeader({ user }: { user: User | null }) {
       : publicLinks;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-asphalt/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <Link href="/" className="group flex items-baseline gap-2">
-          <span className="font-display text-2xl tracking-tight text-amber transition group-hover:text-amber-hot sm:text-3xl">
-            1. FRC
-          </span>
+    <header className="sticky top-0 z-40 overflow-hidden border-b border-line bg-asphalt/95 backdrop-blur-md">
+      <div className="surface-leuchtturm pointer-events-none absolute inset-0" aria-hidden="true" />
+      <div className="stripe-leuchtturm h-1.5 w-full" aria-hidden="true" />
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <Link href="/" className="group flex items-center gap-2 transition group-hover:opacity-90">
+          <Image
+            src="/logo.png"
+            alt="1. FRC Flunky Reifen Club"
+            width={44}
+            height={44}
+            className="h-9 w-9 sm:h-11 sm:w-11"
+            priority
+          />
           <span className="hidden text-xs uppercase tracking-[0.2em] text-foam-muted sm:inline">
             ELO
           </span>
@@ -35,9 +44,11 @@ export function SiteHeader({ user }: { user: User | null }) {
             const active =
               link.href === "/"
                 ? pathname === "/" || pathname.startsWith("/spieler")
-                : link.href === "/admin"
-                  ? pathname.startsWith("/admin")
-                  : pathname === link.href;
+                : link.href === "/spiele"
+                  ? pathname.startsWith("/spiele") || pathname.startsWith("/spiel/")
+                  : link.href === "/admin"
+                    ? pathname.startsWith("/admin")
+                    : pathname === link.href;
             return (
               <Link
                 key={link.href}

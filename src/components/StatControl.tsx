@@ -31,7 +31,7 @@ export function StatControl({
         </button>
         <span
           className={`min-w-8 text-center font-display text-2xl ${
-            danger ? "text-clay" : highlight ? "text-amber" : "text-foam"
+            danger ? "text-clay" : highlight ? "text-signal-yellow" : "text-foam"
           }`}
         >
           {value}

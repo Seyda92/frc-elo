@@ -15,7 +15,13 @@ import {
   ratingHistory,
   teamFactor,
 } from "./generated/schema.ts";
-import { initials, type EloPoint } from "@/lib/format";
+import {
+  initials,
+  sortLeaderboard,
+  type EloPoint,
+  type LeaderboardSortKey,
+  type SortDirection,
+} from "@/lib/format";
 import type { EloParams } from "@/lib/elo";
 import type { Role } from "@/lib/session";
 import { FALLBACK_RATING, V3_MODEL_ID } from "./model.ts";
@@ -344,7 +350,11 @@ export async function getMatchCount(): Promise<number> {
   return row ? Number(row.count) : 0;
 }
 
-export async function getLeaderboard(clubId: number): Promise<Player[]> {
+export async function getLeaderboard(
+  clubId: number,
+  sortBy: LeaderboardSortKey = "elo",
+  direction: SortDirection = "desc",
+): Promise<Player[]> {
   const base = await db
     .select({
       playerId: player.playerId,
@@ -399,7 +409,7 @@ export async function getLeaderboard(clubId: number): Promise<Player[]> {
     };
   });
 
-  return players.sort((a, b) => b.elo - a.elo);
+  return sortLeaderboard(players, sortBy, direction);
 }
 
 export async function getFeaturedEvents(clubId: number): Promise<EventSummary[]> {
@@ -588,6 +598,22 @@ export async function getPlannedMatches(limit?: number): Promise<MatchSummary[]>
     .orderBy(asc(match.playedAt));
   const rows = limit != null ? await query.limit(limit) : await query;
   return buildMatchSummaries(rows);
+}
+
+/** Alle Matches (geplant + bewertet) chronologisch absteigend, paginiert -
+ *  für die öffentliche Übersicht unter /spiele. */
+export async function getAllMatches(
+  offset: number,
+  limit: number,
+): Promise<{ matches: MatchSummary[]; total: number }> {
+  const [{ count }] = await db.select({ count: sql<string>`count(*)` }).from(match);
+  const rows = await db
+    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .from(match)
+    .orderBy(desc(match.playedAt))
+    .limit(limit)
+    .offset(offset);
+  return { matches: await buildMatchSummaries(rows), total: Number(count) };
 }
 
 export async function getPlayerRecentMatches(

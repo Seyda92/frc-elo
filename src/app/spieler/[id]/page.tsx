@@ -81,7 +81,7 @@ export default async function PlayerPage({ params }: Props) {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl space-y-4 px-3 py-6 sm:px-6 sm:py-8 lg:space-y-6">
+      <div className="section-stack mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
         <section className="border border-line bg-asphalt-raised/40">
           <header className="border-b border-line px-4 py-4 sm:px-5">
             <h2 className="font-display text-2xl tracking-tight text-amber sm:text-3xl">
@@ -107,16 +107,18 @@ export default async function PlayerPage({ params }: Props) {
           </div>
         </section>
 
-        <section className="border border-line bg-asphalt-raised/40">
-          <header className="border-b border-line px-4 py-4 sm:px-5">
-            <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
-              ELO-Verlauf
-            </h2>
-          </header>
-          <div className="p-4 sm:p-5">
-            <EloSparkline points={player.eloHistory} />
-          </div>
-        </section>
+        {player.eloHistory.length >= 2 ? (
+          <section className="border border-line bg-asphalt-raised/40">
+            <header className="border-b border-line px-4 py-4 sm:px-5">
+              <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
+                ELO-Verlauf
+              </h2>
+            </header>
+            <div className="p-4 sm:p-5">
+              <EloSparkline points={player.eloHistory} />
+            </div>
+          </section>
+        ) : null}
 
         <section className="border border-line bg-asphalt-raised/40">
           <header className="border-b border-line px-4 py-4 sm:px-5">
@@ -191,7 +193,7 @@ function StatCell({
       </p>
       <p
         className={`mt-1 text-center font-display text-3xl ${
-          highlight ? "text-amber" : "text-foam"
+          highlight ? "text-signal-yellow" : "text-foam"
         }`}
       >
         {value}

@@ -33,7 +33,7 @@ export default async function AdminEventsPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl space-y-4 px-3 py-6 sm:px-6 sm:py-8 lg:space-y-6">
+      <div className="section-stack mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
         <section className="border border-line bg-asphalt-raised/40">
           <header className="border-b border-line px-4 py-4 sm:px-5">
             <h2 className="font-display text-2xl tracking-tight text-amber sm:text-3xl">

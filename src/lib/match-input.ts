@@ -380,6 +380,11 @@ export function validateScoringInput(
     };
   }
 
+  const totalThrows = [...teamA, ...teamB].reduce((sum, r) => sum + r.throws, 0);
+  if (totalThrows === 0) {
+    return { ok: false, error: "Mindestens ein Wurf muss erfasst sein." };
+  }
+
   const note =
     typeof raw.note === "string" && raw.note.trim().length > 0 ? raw.note.trim() : null;
 

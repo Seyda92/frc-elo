@@ -222,7 +222,7 @@ function StatCell({
       </p>
       <p
         className={`mt-1 text-center font-display text-2xl ${
-          highlight ? "text-amber" : "text-foam"
+          highlight ? "text-signal-yellow" : "text-foam"
         }`}
       >
         {value}

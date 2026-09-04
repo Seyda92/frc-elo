@@ -6,14 +6,50 @@ import {
   getPrimaryClub,
   getRecentMatches,
 } from "@/db/queries";
-import { formatDate, formatDateTime, hitRate } from "@/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  hitRate,
+  LEADERBOARD_SORT_KEYS,
+  SORT_DIRECTIONS,
+  type LeaderboardSortKey,
+  type SortDirection,
+} from "@/lib/format";
 
-export default async function HomePage() {
+const SORT_LABELS: Record<LeaderboardSortKey, string> = {
+  elo: "Elo",
+  quote: "Quote",
+  games: "Spiele",
+  bonusBeers: "Bonusbiere",
+  wins: "Siege",
+};
+
+function parseSortBy(raw: string | undefined): LeaderboardSortKey {
+  return (LEADERBOARD_SORT_KEYS as readonly string[]).includes(raw ?? "")
+    ? (raw as LeaderboardSortKey)
+    : "elo";
+}
+
+function parseDirection(raw: string | undefined): SortDirection {
+  return (SORT_DIRECTIONS as readonly string[]).includes(raw ?? "")
+    ? (raw as SortDirection)
+    : "desc";
+}
+
+type Props = {
+  searchParams: Promise<{ sort?: string; dir?: string }>;
+};
+
+export default async function HomePage({ searchParams }: Props) {
+  const { sort: rawSort, dir: rawDir } = await searchParams;
+  const sortBy = parseSortBy(rawSort);
+  const direction = parseDirection(rawDir);
+
   const club = await getPrimaryClub();
   const clubId = club ? Number(club.id) : undefined;
 
   const [ranked, recent, upcoming, featuredEvents] = await Promise.all([
-    clubId != null ? getLeaderboard(clubId) : Promise.resolve([]),
+    clubId != null ? getLeaderboard(clubId, sortBy, direction) : Promise.resolve([]),
     getRecentMatches(3),
     getPlannedMatches(3),
     clubId != null ? getFeaturedEvents(clubId) : Promise.resolve([]),
@@ -22,6 +58,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
       <div className="border-b border-line bg-asphalt-raised/80">
+        <div className="stripe-leuchtturm h-1.5 w-full" aria-hidden="true" />
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-amber">
@@ -43,7 +80,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl space-y-4 px-3 py-6 sm:px-6 sm:py-8 lg:space-y-6">
+      <div className="section-stack mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
         <section className="border border-line bg-asphalt-raised/40">
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-5">
             <div>
@@ -53,6 +90,27 @@ export default async function HomePage() {
               <p className="mt-1 text-sm text-foam-muted">{club?.name}</p>
             </div>
           </header>
+
+          <div className="flex gap-2 overflow-x-auto border-b border-line px-3 py-2 sm:px-5">
+            {LEADERBOARD_SORT_KEYS.map((key) => {
+              const isActive = key === sortBy;
+              const nextDir = isActive && direction === "desc" ? "asc" : "desc";
+              return (
+                <Link
+                  key={key}
+                  href={`/?sort=${key}&dir=${nextDir}`}
+                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-xs uppercase tracking-[0.14em] transition ${
+                    isActive
+                      ? "bg-amber text-asphalt"
+                      : "border border-line text-foam-muted hover:border-amber hover:text-amber"
+                  }`}
+                >
+                  {SORT_LABELS[key]}
+                  {isActive ? (direction === "desc" ? " ↓" : " ↑") : ""}
+                </Link>
+              );
+            })}
+          </div>
 
           <ul className="divide-y divide-line rank-stagger">
             {ranked.map((player, index) => (
@@ -214,7 +272,7 @@ function StatCell({
       </p>
       <p
         className={`mt-1 text-center font-display text-2xl ${
-          highlight ? "text-amber" : "text-foam"
+          highlight ? "text-signal-yellow" : "text-foam"
         }`}
       >
         {value}

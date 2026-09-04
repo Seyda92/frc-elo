@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-asphalt: #12110f;
-  --color-asphalt-raised: #1c1a17;
-  --color-rubber: #2a2722;
-  --color-rubber-light: #3a3630;
+  --color-asphalt: #0f1414;
+  --color-asphalt-raised: #182020;
+  --color-rubber: #202b2b;
+  --color-rubber-light: #2f3d3d;
   --color-foam: #f3ead8;
-  --color-foam-muted: #c4b9a4;
-  --color-amber: #e6a423;
-  --color-amber-hot: #f5c14a;
-  --color-amber-dim: #9a6e18;
-  --color-clay: #c45c3e;
+  --color-foam-muted: #b9c4c2;
+  --color-amber: #17a2a0;
+  --color-amber-hot: #22c4c1;
+  --color-amber-dim: #0f7472;
+  --color-clay: #d1453a;
   --color-moss: #6f8f6a;
-  --color-line: #3f3a33;
+  --color-signal-yellow: #e8c227;
+  --color-line: #2c3838;
 
   --font-display: var(--font-archivo), "Arial Black", sans-serif;
   --font-body: var(--font-source), "Segoe UI", sans-serif;
@@ -84,6 +85,57 @@
       linear-gradient(180deg, #171512 0%, var(--color-asphalt) 45%, #0e0d0b 100%);
   }
 
+  .surface-leuchtturm {
+    background-image: repeating-linear-gradient(
+      -35deg,
+      color-mix(in oklab, var(--color-clay) 70%, transparent) 0px,
+      color-mix(in oklab, var(--color-clay) 70%, transparent) 14px,
+      color-mix(in oklab, var(--color-signal-yellow) 70%, transparent) 14px,
+      color-mix(in oklab, var(--color-signal-yellow) 70%, transparent) 28px
+    );
+    opacity: 0.16;
+  }
+
+  .stripe-leuchtturm {
+    background-image: repeating-linear-gradient(
+      -35deg,
+      var(--color-clay) 0px,
+      var(--color-clay) 14px,
+      var(--color-signal-yellow) 14px,
+      var(--color-signal-yellow) 28px
+    );
+  }
+
+  /* Trennt direkte Section-Kinder durch einen Leuchtturm-Streifen statt
+     reinem Whitespace. Ersetzt space-y-* auf dem Elternelement. */
+  .section-stack > * + * {
+    margin-top: 1rem;
+    position: relative;
+    padding-top: 1rem;
+  }
+
+  .section-stack > * + *::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background-image: repeating-linear-gradient(
+      -35deg,
+      var(--color-clay) 0px,
+      var(--color-clay) 14px,
+      var(--color-signal-yellow) 14px,
+      var(--color-signal-yellow) 28px
+    );
+  }
+
+  @media (min-width: 1024px) {
+    .section-stack > * + * {
+      margin-top: 1.5rem;
+    }
+  }
+
   .texture-grain {
     background-image:
       radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.03) 0 1px, transparent 1.5px),
@@ -131,5 +183,31 @@
   }
   .rank-stagger > *:nth-child(10) {
     animation-delay: 0.4s;
+  }
+
+  /* Ersetzt die einfarbige border-line überall durch die Leuchtturm-
+     Kontur (nur die Kante, keine Flächenfüllung) — Karten-Umrandungen,
+     Header-Unterstriche und Trenner zwischen Listenzeilen. */
+  .border-line {
+    border-color: transparent;
+    border-image: repeating-linear-gradient(
+      -35deg,
+      var(--color-clay) 0px,
+      var(--color-clay) 8px,
+      var(--color-signal-yellow) 8px,
+      var(--color-signal-yellow) 16px
+    ) 1;
+  }
+
+  .divide-y.divide-line > :not([hidden]) ~ :not([hidden]) {
+    border-color: transparent;
+    border-top-width: 3px;
+    border-image: repeating-linear-gradient(
+      -35deg,
+      var(--color-clay) 0px,
+      var(--color-clay) 8px,
+      var(--color-signal-yellow) 8px,
+      var(--color-signal-yellow) 16px
+    ) 1;
   }
 }

@@ -246,6 +246,31 @@ test("bewerten: Treffer ueber Wuerfe wird abgelehnt", () => {
   if (!result.ok) assert.match(result.error, /Treffer/);
 });
 
+test("bewerten: Spiel ohne jeden Wurf wird abgelehnt", () => {
+  const result = validateScoringInput(
+    scoringPayload({
+      teamA: [{ playerId: "1", bonusBeer: 0, throws: 0, hits: 0 }],
+      teamB: [{ playerId: "2", bonusBeer: 0, throws: 0, hits: 0 }],
+    }),
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Wurf/);
+});
+
+test("bewerten: ein Spieler ohne Wurf blockiert nicht, solange im Match geworfen wurde", () => {
+  const result = validateScoringInput(
+    scoringPayload({
+      teamA: [{ playerId: "1", bonusBeer: 0, throws: 0, hits: 0 }],
+      teamB: [{ playerId: "2", bonusBeer: 0, throws: 8, hits: 4 }],
+    }),
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, true);
+});
+
 test("bewerten: fehlender Sieger wird abgelehnt", () => {
   const result = validateScoringInput(scoringPayload({ winner: null }), [1], [2]);
   assert.equal(result.ok, false);
