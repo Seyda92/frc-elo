@@ -49,11 +49,22 @@ export default async function AdminClubsPage() {
           ) : (
             <ul className="divide-y divide-line">
               {clubs.map((club) => (
-                <li key={club.id} className="px-4 py-4 sm:px-5">
-                  <p className="font-display text-xl text-foam sm:text-2xl">{club.name}</p>
-                  {club.location ? (
-                    <p className="mt-1 text-sm text-foam-muted">{club.location}</p>
-                  ) : null}
+                <li
+                  key={club.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5"
+                >
+                  <div>
+                    <p className="font-display text-xl text-foam sm:text-2xl">{club.name}</p>
+                    {club.location ? (
+                      <p className="mt-1 text-sm text-foam-muted">{club.location}</p>
+                    ) : null}
+                  </div>
+                  <Link
+                    href={`/admin/vereine/${club.id}/bearbeiten`}
+                    className="border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+                  >
+                    Bearbeiten
+                  </Link>
                 </li>
               ))}
             </ul>

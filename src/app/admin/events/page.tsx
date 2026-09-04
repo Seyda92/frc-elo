@@ -76,6 +76,12 @@ export default async function AdminEventsPage() {
                       : ""}
                     {event.location ? ` · ${event.location}` : ""}
                   </p>
+                  <Link
+                    href={`/admin/events/${event.id}/bearbeiten`}
+                    className="mt-2 inline-block border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+                  >
+                    Bearbeiten
+                  </Link>
                 </li>
               ))}
             </ul>
