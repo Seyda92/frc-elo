@@ -155,6 +155,7 @@ export const player = pgTable("player", {
 	playerId: integer("player_id").primaryKey().generatedAlwaysAsIdentity({ name: "player_player_id_seq", startWith: 1, increment: 1, minValue: 1, maxValue: 2147483647, cache: 1 }),
 	clubId: integer("club_id"),
 	displayName: text("display_name").notNull(),
+	alias: text("alias"),
 	jerseyNumber: integer("jersey_number"),
 	joinedAt: timestamp("joined_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	isActive: integer("is_active").default(1).notNull(),

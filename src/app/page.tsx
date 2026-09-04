@@ -72,6 +72,11 @@ export default async function HomePage() {
                       <div>
                         <p className="font-display text-xl text-foam group-hover:text-amber sm:text-2xl">
                           {player.name}
+                          {player.alias ? (
+                            <span className="ml-2 text-sm font-normal text-foam-muted">
+                              ({player.alias})
+                            </span>
+                          ) : null}
                         </p>
                         <p className="text-sm text-foam-muted">
                           {player.number != null ? `#${player.number} · ` : ""}ELO {player.elo}

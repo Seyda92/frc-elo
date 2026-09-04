@@ -165,7 +165,14 @@ function TeamPanel({
                   {p.jerseyNumber ?? "–"}
                 </span>
                 <div>
-                  <p className="font-display text-xl text-foam sm:text-2xl">{p.name}</p>
+                  <p className="font-display text-xl text-foam sm:text-2xl">
+                    {p.name}
+                    {p.alias ? (
+                      <span className="ml-2 text-sm font-normal text-foam-muted">
+                        ({p.alias})
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="text-sm text-foam-muted">ELO {p.rating}</p>
                 </div>
               </div>

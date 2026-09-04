@@ -52,7 +52,10 @@ export default async function AdminPlayersPage() {
           ) : (
             <ul className="divide-y divide-line">
               {players.map((player) => (
-                <li key={player.id} className="px-4 py-4 sm:px-5">
+                <li
+                  key={player.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5"
+                >
                   <Link
                     href={`/spieler/${player.id}`}
                     className="group flex items-center gap-3 transition hover:opacity-90"
@@ -63,9 +66,20 @@ export default async function AdminPlayersPage() {
                     <div>
                       <p className="font-display text-xl text-foam group-hover:text-amber sm:text-2xl">
                         {player.name}
+                        {player.alias ? (
+                          <span className="ml-2 text-sm font-normal text-foam-muted">
+                            ({player.alias})
+                          </span>
+                        ) : null}
                       </p>
                       <p className="text-sm text-foam-muted">{player.clubName}</p>
                     </div>
+                  </Link>
+                  <Link
+                    href={`/admin/spieler/${player.id}/bearbeiten`}
+                    className="border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+                  >
+                    Bearbeiten
                   </Link>
                 </li>
               ))}

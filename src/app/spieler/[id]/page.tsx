@@ -54,6 +54,11 @@ export default async function PlayerPage({ params }: Props) {
               </p>
               <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
                 {player.name}
+                {player.alias ? (
+                  <span className="ml-2 text-lg font-normal text-foam-muted">
+                    ({player.alias})
+                  </span>
+                ) : null}
               </h1>
             </div>
           </div>

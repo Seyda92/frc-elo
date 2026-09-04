@@ -12,6 +12,7 @@ CREATE TABLE player (
     player_id     INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     club_id       INTEGER REFERENCES club(club_id),
     display_name  TEXT        NOT NULL,
+    alias         TEXT,                              -- zusätzlich zum Namen, kein Ersatz
     jersey_number INTEGER,                          -- Rückennummer
     joined_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     is_active     INTEGER     NOT NULL DEFAULT 1,

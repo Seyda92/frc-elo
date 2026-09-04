@@ -14,6 +14,7 @@ export type TeamMember = {
 export type Player = {
   id: string;
   name: string;
+  alias: string | null;
   number: number | null;
   clubId: string;
   elo: number;
@@ -39,6 +40,7 @@ export type EventSummary = {
 export type MatchPlayerStat = {
   playerId: string;
   name: string;
+  alias: string | null;
   number: number | null;
   elo: number;
   side: "A" | "B";

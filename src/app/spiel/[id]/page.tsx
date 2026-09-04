@@ -162,6 +162,11 @@ function TeamPanel({
                 <div>
                   <p className="font-display text-xl text-foam hover:text-amber sm:text-2xl">
                     {stats.name}
+                    {stats.alias ? (
+                      <span className="ml-2 text-sm font-normal text-foam-muted">
+                        ({stats.alias})
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-sm text-foam-muted">ELO {stats.elo}</p>
                 </div>

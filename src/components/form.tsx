@@ -56,11 +56,13 @@ export function SelectField({
   name,
   required,
   options,
+  defaultValue,
 }: {
   label: string;
   name: string;
   required?: boolean;
   options: { value: string; label: string }[];
+  defaultValue?: string;
 }) {
   return (
     <label className="block">
@@ -68,7 +70,12 @@ export function SelectField({
         {label}
         {required ? " *" : ""}
       </span>
-      <select className={`mt-1 ${inputClasses}`} name={name} required={required}>
+      <select
+        className={`mt-1 ${inputClasses}`}
+        name={name}
+        required={required}
+        defaultValue={defaultValue ?? ""}
+      >
         <option value="">– bitte wählen –</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
