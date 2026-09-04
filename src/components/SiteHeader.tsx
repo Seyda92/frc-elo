@@ -7,7 +7,6 @@ import type { Role } from "@/lib/session";
 
 const publicLinks = [
   { href: "/", label: "Leaderboard" },
-  { href: "/live", label: "Live" },
 ];
 
 type User = { username: string; role: Role };
