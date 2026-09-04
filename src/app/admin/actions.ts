@@ -596,6 +596,8 @@ export async function createPlannedMatch(
           // wird erst beim Bewerten gesetzt (siehe scoreMatch), wenn das
           // Spiel beendet ist.
           name: input.name,
+          teamAName: input.teamAName,
+          teamBName: input.teamBName,
         })
         .returning({ matchId: match.matchId });
       const newMatchId = insertedMatch.matchId;

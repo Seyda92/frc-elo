@@ -16,10 +16,14 @@ export function ScoreMatchForm({
   matchId,
   teamA,
   teamB,
+  teamAName,
+  teamBName,
 }: {
   matchId: number;
   teamA: MatchEntryPlayer[];
   teamB: MatchEntryPlayer[];
+  teamAName: string;
+  teamBName: string;
 }) {
   // Bei Erfolg leitet scoreMatch serverseitig auf /spiel/[id] weiter
   // (redirect() in der Action) — kein Client-Redirect hier nötig, und aus
@@ -83,13 +87,13 @@ export function ScoreMatchForm({
 
       <div className="flex flex-wrap items-center justify-center gap-4">
         <WinnerButton
-          label="Team A gewinnt"
+          label={`${teamAName} gewinnt`}
           active={winner === "A"}
           onClick={() => setWinner("A")}
         />
         <span className="font-display text-2xl text-amber">VS</span>
         <WinnerButton
-          label="Team B gewinnt"
+          label={`${teamBName} gewinnt`}
           active={winner === "B"}
           onClick={() => setWinner("B")}
         />
@@ -97,7 +101,7 @@ export function ScoreMatchForm({
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
         <TeamPanel
-          title="Team A"
+          title={teamAName}
           accent="amber"
           roster={teamA}
           rows={rows}
@@ -105,7 +109,7 @@ export function ScoreMatchForm({
           onChange={updateStat}
         />
         <TeamPanel
-          title="Team B"
+          title={teamBName}
           accent="foam"
           roster={teamB}
           rows={rows}

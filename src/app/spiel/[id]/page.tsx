@@ -72,7 +72,7 @@ export default async function MatchPage({ params }: Props) {
                   : "border border-line text-foam-muted"
               }`}
             >
-              Team A {match.winner === "A" ? "gewinnt" : ""}
+              {match.teamAName} {match.winner === "A" ? "gewinnt" : ""}
             </span>
             <span className="font-display text-2xl text-amber">VS</span>
             <span
@@ -82,7 +82,7 @@ export default async function MatchPage({ params }: Props) {
                   : "border border-line text-foam-muted"
               }`}
             >
-              Team B {match.winner === "B" ? "gewinnt" : ""}
+              {match.teamBName} {match.winner === "B" ? "gewinnt" : ""}
             </span>
           </div>
         ) : (
@@ -93,14 +93,14 @@ export default async function MatchPage({ params }: Props) {
 
         <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
           <TeamPanel
-            title="Team A"
+            title={match.teamAName}
             accent="amber"
             side="A"
             match={match}
             isWinner={match.winner === "A"}
           />
           <TeamPanel
-            title="Team B"
+            title={match.teamBName}
             accent="foam"
             side="B"
             match={match}

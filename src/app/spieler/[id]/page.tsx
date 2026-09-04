@@ -142,7 +142,7 @@ export default async function PlayerPage({ params }: Props) {
                         {formatDateTime(match.playedAt)}
                       </p>
                       <p className="mt-1 font-display text-xl text-foam">
-                        {onA ? "Team A" : "Team B"} ·{" "}
+                        {onA ? match.teamAName : match.teamBName} ·{" "}
                         {(onA ? match.teamA : match.teamB)
                           .map((p) => p.name.split(" ")[0])
                           .join(", ")}

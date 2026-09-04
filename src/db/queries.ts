@@ -264,6 +264,8 @@ export type PlannedMatchDetail = {
   kFactor: number;
   canDiff: number;
   note: string | null;
+  teamAName: string;
+  teamBName: string;
   refereeName: string | null;
   teamA: MatchEntryPlayer[];
   teamB: MatchEntryPlayer[];
@@ -282,6 +284,8 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
       kFactor: match.kFactor,
       canDiff: match.canDiff,
       note: match.note,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
     })
     .from(match)
     .leftJoin(event, eq(event.eventId, match.eventId))
@@ -339,6 +343,8 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
     kFactor: row.kFactor,
     canDiff: row.canDiff,
     note: row.note,
+    teamAName: row.teamAName ?? "Team A",
+    teamBName: row.teamBName ?? "Team B",
     refereeName: refereeRow?.name ?? null,
     teamA: rosterRows.filter((r) => r.side === "A").map(toEntryPlayer),
     teamB: rosterRows.filter((r) => r.side === "B").map(toEntryPlayer),
@@ -441,7 +447,14 @@ export async function getFeaturedEvents(clubId: number): Promise<EventSummary[]>
     .filter((e) => e.status !== "past");
 }
 
-type MatchRow = { matchId: number; eventId: number | null; playedAt: string; name: string | null };
+type MatchRow = {
+  matchId: number;
+  eventId: number | null;
+  playedAt: string;
+  name: string | null;
+  teamAName: string | null;
+  teamBName: string | null;
+};
 
 async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[]> {
   if (matchRows.length === 0) return [];
@@ -536,11 +549,14 @@ async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[
           : undefined
       : undefined;
 
+    const teamAName = m.teamAName ?? "Team A";
+    const teamBName = m.teamBName ?? "Team B";
+
     const scoreLabel = isPlayed
       ? winner === "A"
-        ? "Team A gewinnt"
+        ? `${teamAName} gewinnt`
         : winner === "B"
-          ? "Team B gewinnt"
+          ? `${teamBName} gewinnt`
           : "Unentschieden"
       : `Geplant · ${new Intl.DateTimeFormat("de-DE", {
           day: "2-digit",
@@ -553,6 +569,8 @@ async function buildMatchSummaries(matchRows: MatchRow[]): Promise<MatchSummary[
       id: String(m.matchId),
       eventId: m.eventId != null ? String(m.eventId) : undefined,
       name: m.name ?? undefined,
+      teamAName,
+      teamBName,
       playedAt: playedAtDate.toISOString(),
       status: isPlayed ? "played" : "planned",
       teamA,
@@ -568,7 +586,14 @@ export async function getRecentMatches(limit = 3): Promise<MatchSummary[]> {
   // noch nicht bewertetes Match mit played_at in der Vergangenheit gehört
   // nicht in "Zuletzt erfasst", sondern zu getPlannedMatches().
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .select({
+      matchId: match.matchId,
+      eventId: match.eventId,
+      playedAt: match.playedAt,
+      name: match.name,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    })
     .from(match)
     .where(sql`EXISTS (SELECT 1 FROM ${matchTeam} WHERE ${matchTeam.matchId} = ${match.matchId})`)
     .orderBy(desc(match.playedAt))
@@ -578,7 +603,14 @@ export async function getRecentMatches(limit = 3): Promise<MatchSummary[]> {
 
 export async function getUpcomingMatches(): Promise<MatchSummary[]> {
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .select({
+      matchId: match.matchId,
+      eventId: match.eventId,
+      playedAt: match.playedAt,
+      name: match.name,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    })
     .from(match)
     .where(gt(match.playedAt, sql`now()`))
     .orderBy(asc(match.playedAt));
@@ -590,7 +622,14 @@ export async function getUpcomingMatches(): Promise<MatchSummary[]> {
  *  Matches"-Übersicht in /admin/spiele. */
 export async function getPlannedMatches(limit?: number): Promise<MatchSummary[]> {
   const query = db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .select({
+      matchId: match.matchId,
+      eventId: match.eventId,
+      playedAt: match.playedAt,
+      name: match.name,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    })
     .from(match)
     .where(
       sql`EXISTS (SELECT 1 FROM ${matchPlannedRoster} WHERE ${matchPlannedRoster.matchId} = ${match.matchId})`,
@@ -608,7 +647,14 @@ export async function getAllMatches(
 ): Promise<{ matches: MatchSummary[]; total: number }> {
   const [{ count }] = await db.select({ count: sql<string>`count(*)` }).from(match);
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .select({
+      matchId: match.matchId,
+      eventId: match.eventId,
+      playedAt: match.playedAt,
+      name: match.name,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    })
     .from(match)
     .orderBy(desc(match.playedAt))
     .limit(limit)
@@ -621,7 +667,14 @@ export async function getPlayerRecentMatches(
   limit = 4,
 ): Promise<MatchSummary[]> {
   const rows = await db
-    .select({ matchId: match.matchId, eventId: match.eventId, playedAt: match.playedAt, name: match.name })
+    .select({
+      matchId: match.matchId,
+      eventId: match.eventId,
+      playedAt: match.playedAt,
+      name: match.name,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    })
     .from(match)
     .innerJoin(matchTeam, eq(matchTeam.matchId, match.matchId))
     .innerJoin(matchParticipation, eq(matchParticipation.matchTeamId, matchTeam.matchTeamId))
@@ -639,6 +692,8 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
       playedAt: match.playedAt,
       name: match.name,
       note: match.note,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
       eventName: event.name,
       clubCity: club.city,
     })
@@ -650,7 +705,14 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
   if (!row) return undefined;
 
   const [summary] = await buildMatchSummaries([
-    { matchId: row.matchId, eventId: row.eventId, playedAt: row.playedAt, name: row.name },
+    {
+      matchId: row.matchId,
+      eventId: row.eventId,
+      playedAt: row.playedAt,
+      name: row.name,
+      teamAName: row.teamAName,
+      teamBName: row.teamBName,
+    },
   ]);
 
   const statRows = await db

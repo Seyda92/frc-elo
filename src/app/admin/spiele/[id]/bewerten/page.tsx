@@ -31,7 +31,7 @@ export default async function ScoreMatchPage({ params }: Props) {
               {detail.eventName ? ` · ${detail.eventName}` : ""}
             </p>
             <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
-              Team A vs. Team B
+              {detail.teamAName} vs. {detail.teamBName}
             </h1>
             <p className="mt-1 text-sm text-foam-muted">
               {formatDateTime(detail.playedAt)}
@@ -49,7 +49,13 @@ export default async function ScoreMatchPage({ params }: Props) {
 
       <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
         <section className="border border-line bg-asphalt-raised/40">
-          <ScoreMatchForm matchId={detail.matchId} teamA={detail.teamA} teamB={detail.teamB} />
+          <ScoreMatchForm
+            matchId={detail.matchId}
+            teamA={detail.teamA}
+            teamB={detail.teamB}
+            teamAName={detail.teamAName}
+            teamBName={detail.teamBName}
+          />
         </section>
       </div>
     </div>

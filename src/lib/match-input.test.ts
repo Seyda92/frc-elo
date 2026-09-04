@@ -46,6 +46,34 @@ test("geplant: gueltige minimale Nutzlast wird akzeptiert, kein winner noetig", 
   }
 });
 
+test("geplant: teamAName/teamBName werden getrimmt uebernommen, wenn gesetzt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ teamAName: "  Die Dosenkoenige  ", teamBName: "Reifenrocker" }),
+    KNOWN,
+    NOW,
+    ALL_REFEREES,
+  );
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.value.teamAName, "Die Dosenkoenige");
+    assert.equal(result.value.teamBName, "Reifenrocker");
+  }
+});
+
+test("geplant: leerer teamAName wird zu null (Fallback auf Team A greift spaeter)", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ teamAName: "   ", teamBName: null }),
+    KNOWN,
+    NOW,
+    ALL_REFEREES,
+  );
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.value.teamAName, null);
+    assert.equal(result.value.teamBName, null);
+  }
+});
+
 test("geplant: leeres Team A wird abgelehnt", () => {
   const result = validatePlannedMatchInput(plannedBasePayload({ teamA: [] }), KNOWN, NOW, ALL_REFEREES);
   assert.equal(result.ok, false);

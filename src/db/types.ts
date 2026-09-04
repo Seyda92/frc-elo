@@ -54,6 +54,8 @@ export type MatchSummary = {
   id: string;
   eventId?: string;
   name?: string;
+  teamAName: string;
+  teamBName: string;
   playedAt: string;
   status: "planned" | "played";
   teamA: TeamMember[];

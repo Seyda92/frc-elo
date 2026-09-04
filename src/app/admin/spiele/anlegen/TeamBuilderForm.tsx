@@ -36,6 +36,8 @@ export function TeamBuilderForm({
     () => new Map(players.map((p) => [p.playerId, null])),
   );
   const [refereeId, setRefereeId] = useState("");
+  const [teamAName, setTeamAName] = useState("");
+  const [teamBName, setTeamBName] = useState("");
   // Erst nach dem Mount mit der lokalen Zeit belegen (nicht beim ersten
   // Render, sonst SSR/Client-Hydration-Konflikt, falls der Server in einer
   // anderen Zeitzone liegt als der Browser).
@@ -105,6 +107,8 @@ export function TeamBuilderForm({
       })(),
       eventId: (formData.get("event_id") as string) || null,
       name: (formData.get("name") as string) || null,
+      teamAName: teamAName.trim() || null,
+      teamBName: teamBName.trim() || null,
       refereePlayerId: refereeId || null,
       teamA: teamA.map((p) => ({ playerId: String(p.playerId) })),
       teamB: teamB.map((p) => ({ playerId: String(p.playerId) })),
@@ -181,13 +185,48 @@ export function TeamBuilderForm({
         <Field label="Name" name="name" placeholder="optional, z. B. „Finale“" />
       </div>
 
-      <p className="text-sm text-foam-muted">
-        Team A · {teamA.length} Spieler &nbsp;·&nbsp; Team B · {teamB.length} Spieler
-      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+            Name Team A
+          </span>
+          <input
+            className="mt-1 w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+            type="text"
+            value={teamAName}
+            onChange={(e) => setTeamAName(e.target.value)}
+            placeholder="optional, Standard „Team A“"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+            Name Team B
+          </span>
+          <input
+            className="mt-1 w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+            type="text"
+            value={teamBName}
+            onChange={(e) => setTeamBName(e.target.value)}
+            placeholder="optional, Standard „Team B“"
+          />
+        </label>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-        <TeamColumn title="Team A" accent="amber" side="A" roster={teamA} onSetSide={setSide} />
-        <TeamColumn title="Team B" accent="foam" side="B" roster={teamB} onSetSide={setSide} />
+        <TeamColumn
+          title={`${teamAName.trim() || "Team A"} · ${teamA.length} Spieler`}
+          accent="amber"
+          side="A"
+          roster={teamA}
+          onSetSide={setSide}
+        />
+        <TeamColumn
+          title={`${teamBName.trim() || "Team B"} · ${teamB.length} Spieler`}
+          accent="foam"
+          side="B"
+          roster={teamB}
+          onSetSide={setSide}
+        />
       </div>
 
       {clubs.length > 0 && <NewPlayerBlock clubs={clubs} onCreated={handlePlayerCreated} />}

@@ -220,6 +220,8 @@ export type PlannedMatchFormPayload = {
   playedAt: string;
   eventId: string | null;
   name: string | null;
+  teamAName: string | null;
+  teamBName: string | null;
   refereePlayerId: string | null;
   teamA: PlannedPayloadRow[];
   teamB: PlannedPayloadRow[];
@@ -230,6 +232,8 @@ export type NormalizedPlannedInput = {
   eventId: number | null;
   kFactor: KFactor;
   name: string | null;
+  teamAName: string | null;
+  teamBName: string | null;
   refereePlayerId: number | null;
   teamA: number[];
   teamB: number[];
@@ -288,6 +292,14 @@ export function validatePlannedMatchInput(
 
   const name =
     typeof raw.name === "string" && raw.name.trim().length > 0 ? raw.name.trim() : null;
+  const teamAName =
+    typeof raw.teamAName === "string" && raw.teamAName.trim().length > 0
+      ? raw.teamAName.trim()
+      : null;
+  const teamBName =
+    typeof raw.teamBName === "string" && raw.teamBName.trim().length > 0
+      ? raw.teamBName.trim()
+      : null;
 
   for (const playerId of [...teamA, ...teamB]) {
     if (!knownPlayers.has(playerId)) {
@@ -308,6 +320,8 @@ export function validatePlannedMatchInput(
       eventId,
       kFactor: DEFAULT_K_FACTOR,
       name,
+      teamAName,
+      teamBName,
       refereePlayerId,
       teamA,
       teamB,

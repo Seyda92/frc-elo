@@ -40,6 +40,8 @@ export const match = pgTable("match", {
 	canDiff: integer("can_diff").default(0).notNull(),
 	note: text(),
 	name: text(),
+	teamAName: text("team_a_name"),
+	teamBName: text("team_b_name"),
 }, (table) => [
 	index("idx_match_event").using("btree", table.eventId.asc().nullsLast().op("int4_ops")),
 	foreignKey({

@@ -78,7 +78,9 @@ CREATE TABLE match (
     k_factor   INTEGER     NOT NULL DEFAULT 40,          -- fest 40; 50/30/20 nur in historischen Zeilen
     can_diff   INTEGER     NOT NULL DEFAULT 0,           -- D (Dosenunterschied, >=0)
     note       TEXT,
-    name       TEXT                                      -- optionaler Anzeigename (z.B. "Finale"), getrennt von note
+    name       TEXT,                                     -- optionaler Anzeigename (z.B. "Finale"), getrennt von note
+    team_a_name TEXT,                                     -- optionaler Teamname Seite A, Fallback "Team A"
+    team_b_name TEXT                                      -- optionaler Teamname Seite B, Fallback "Team B"
 );
 
 -- Die zwei Seiten (Teams) eines Matches
