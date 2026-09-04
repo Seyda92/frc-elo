@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { localDateTimeValue, sortLeaderboard } from "./format.ts";
+import { ehrensteinePerAntritt, localDateTimeValue, sortLeaderboard } from "./format.ts";
 
 const PLAYERS = [
   { id: "a", elo: 1010, throws: 10, hits: 5, games: 3, bonusBeers: 2, wins: 2 },
@@ -43,4 +43,12 @@ test("sortLeaderboard: gibt eine neue Liste zurueck, mutiert das Original nicht"
   const original = [...PLAYERS];
   sortLeaderboard(PLAYERS, "wins", "asc");
   assert.deepEqual(PLAYERS, original);
+});
+
+test("ehrensteinePerAntritt: ohne Antritte 0 statt Division durch 0", () => {
+  assert.equal(ehrensteinePerAntritt({ ehrensteine: 0, antritte: 0 }), 0);
+});
+
+test("ehrensteinePerAntritt: rundet auf zwei Nachkommastellen", () => {
+  assert.equal(ehrensteinePerAntritt({ ehrensteine: 1, antritte: 3 }), 0.33);
 });

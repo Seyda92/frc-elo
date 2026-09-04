@@ -38,7 +38,11 @@ CREATE TABLE event (
     name         TEXT NOT NULL,
     starts_on    DATE,                              -- Wochenende oder länger
     ends_on      DATE,
-    club_id      INTEGER REFERENCES club(club_id)
+    club_id      INTEGER REFERENCES club(club_id),
+    -- Optionaler eigener Ort, falls das Event nicht am Vereinsort
+    -- stattfindet. Nullable mit Fallback auf den Vereinsort in der Anzeige
+    -- (siehe getAllEvents/getMatchDetail in queries.ts), siehe migrations/0011.
+    location     TEXT
 );
 
 -- ===========================================================================
@@ -198,6 +202,25 @@ CREATE TABLE match_planned_roster (
 );
 
 CREATE INDEX idx_planned_roster_match ON match_planned_roster(match_id);
+
+-- Schnick-Schnack-Schnuck-Auslosung (D22): wer beginnt, wird vor dem Match
+-- ausgelost. Je Match hoechstens eine Zeile pro Seite (der Spieler, der fuer
+-- diese Seite ausgelost hat) mit einem simplen Zaehler, wie oft er dabei
+-- "Ehrenstein" (Stein) gespielt hat. Bewusst kein Rundenlog (wer wann was
+-- geworfen hat) - das passiert am Turniertag nicht oft genug, um den
+-- Erfassungsaufwand zu rechtfertigen (siehe Entscheidungsregel oben).
+-- Optional: ein Match kann auch ganz ohne Auslosung bewertet werden.
+CREATE TABLE match_rps_draw (
+    match_id          INTEGER NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
+    side              TEXT    NOT NULL,
+    player_id         INTEGER NOT NULL REFERENCES player(player_id),
+    ehrenstein_count  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (match_id, side),
+    CHECK (side IN ('A','B')),
+    CHECK (ehrenstein_count >= 0)
+);
+
+CREATE INDEX idx_rps_draw_player ON match_rps_draw(player_id);
 
 -- Cache: Anzahl geleiteter Partien je Spieler (aus match_referee ableitbar,
 -- analog zu player_rating_current). Spart bei Ranglisten/Profilseiten das

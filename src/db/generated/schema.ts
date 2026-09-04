@@ -9,6 +9,7 @@ export const event = pgTable("event", {
 	startsOn: date("starts_on"),
 	endsOn: date("ends_on"),
 	clubId: integer("club_id"),
+	location: text(),
 }, (table) => [
 	foreignKey({
 			columns: [table.clubId],
@@ -228,6 +229,28 @@ export const matchParticipation = pgTable("match_participation", {
 	primaryKey({ columns: [table.matchTeamId, table.playerId], name: "match_participation_pkey"}),
 	check("match_participation_bonus_beer_check", sql`(bonus_beer >= 0) AND (bonus_beer <= 10)`),
 	check("match_participation_check", sql`(hits IS NULL) OR (throws IS NULL) OR (hits <= throws)`),
+]);
+
+export const matchRpsDraw = pgTable("match_rps_draw", {
+	matchId: integer("match_id").notNull(),
+	side: text().notNull(),
+	playerId: integer("player_id").notNull(),
+	ehrensteinCount: integer("ehrenstein_count").default(0).notNull(),
+}, (table) => [
+	index("idx_rps_draw_player").using("btree", table.playerId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.matchId],
+			foreignColumns: [match.matchId],
+			name: "match_rps_draw_match_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.playerId],
+			foreignColumns: [player.playerId],
+			name: "match_rps_draw_player_id_fkey"
+		}),
+	primaryKey({ columns: [table.matchId, table.side], name: "match_rps_draw_pkey"}),
+	check("match_rps_draw_side_check", sql`side = ANY (ARRAY['A'::text, 'B'::text])`),
+	check("match_rps_draw_ehrenstein_count_check", sql`ehrenstein_count >= 0`),
 ]);
 
 export const playerRatingCurrent = pgTable("player_rating_current", {

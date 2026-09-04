@@ -16,6 +16,11 @@ const LIVE_STATS_DEBOUNCE_MS = 800;
 type RowState = { bonusBeer: number; throws: number; hits: number };
 const EMPTY_ROW: RowState = { bonusBeer: 0, throws: 0, hits: 0 };
 
+/** Schnick-Schnack-Schnuck-Auslosung (D22): je Seite optional ein
+ *  auslosender Spieler + Ehrenstein-Zähler, kein Rundenlog. */
+type RpsState = { playerId: number | null; ehrensteinCount: number };
+const EMPTY_RPS: RpsState = { playerId: null, ehrensteinCount: 0 };
+
 export function ScoreMatchForm({
   matchId,
   teamA,
@@ -56,6 +61,8 @@ export function ScoreMatchForm({
       ),
   );
   const [winner, setWinner] = useState<"A" | "B" | null>(null);
+  const [rpsA, setRpsA] = useState<RpsState>(EMPTY_RPS);
+  const [rpsB, setRpsB] = useState<RpsState>(EMPTY_RPS);
 
   function updateStat(playerId: number, field: keyof RowState, delta: number) {
     setRows((prev) => {
@@ -116,11 +123,17 @@ export function ScoreMatchForm({
       };
     };
 
+    const rpsRow = (rps: RpsState) =>
+      rps.playerId !== null
+        ? { playerId: String(rps.playerId), ehrensteinCount: rps.ehrensteinCount }
+        : null;
+
     const payload: ScoringPayload = {
       winner,
       note: (formData.get("note") as string) || null,
       teamA: teamA.map(rowPayload),
       teamB: teamB.map(rowPayload),
+      rpsDraw: { A: rpsRow(rpsA), B: rpsRow(rpsB) },
     };
 
     formData.set("match_id", String(matchId));
@@ -164,6 +177,17 @@ export function ScoreMatchForm({
           onChange={updateStat}
         />
       </div>
+
+      <RpsDrawSection
+        teamAName={teamAName}
+        teamBName={teamBName}
+        teamA={teamA}
+        teamB={teamB}
+        rpsA={rpsA}
+        rpsB={rpsB}
+        onChangeA={setRpsA}
+        onChangeB={setRpsB}
+      />
 
       <Field label="Notiz" name="note" placeholder="optional, z. B. Besonderheiten zum Spiel" />
 
@@ -254,5 +278,104 @@ function TeamPanel({
         })}
       </ul>
     </section>
+  );
+}
+
+/** Schnick-Schnack-Schnuck-Auslosung (D22): je Seite optional ein
+ *  Spieler-Dropdown + ein "+1 Ehrenstein"-Zähler. Passiert selten genug,
+ *  dass ein eigener Live-Zwischenstand nicht lohnt — wird zusammen mit dem
+ *  restlichen Ergebnis final gespeichert. */
+function RpsDrawSection({
+  teamAName,
+  teamBName,
+  teamA,
+  teamB,
+  rpsA,
+  rpsB,
+  onChangeA,
+  onChangeB,
+}: {
+  teamAName: string;
+  teamBName: string;
+  teamA: MatchEntryPlayer[];
+  teamB: MatchEntryPlayer[];
+  rpsA: RpsState;
+  rpsB: RpsState;
+  onChangeA: (next: RpsState) => void;
+  onChangeB: (next: RpsState) => void;
+}) {
+  return (
+    <section className="border border-line bg-asphalt-raised/40 p-4 sm:p-5">
+      <h2 className="font-display text-xl tracking-tight text-foam">
+        Ehrenstein
+      </h2>
+      <p className="mt-1 text-sm text-foam-muted">
+        Optional — wer hat für welche Seite ausgelost, und wie oft dabei
+        Ehrenstein (Stein) gespielt?
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <RpsSidePicker
+          label={teamAName}
+          roster={teamA}
+          state={rpsA}
+          onChange={onChangeA}
+        />
+        <RpsSidePicker
+          label={teamBName}
+          roster={teamB}
+          state={rpsB}
+          onChange={onChangeB}
+        />
+      </div>
+    </section>
+  );
+}
+
+function RpsSidePicker({
+  label,
+  roster,
+  state,
+  onChange,
+}: {
+  label: string;
+  roster: MatchEntryPlayer[];
+  state: RpsState;
+  onChange: (next: RpsState) => void;
+}) {
+  return (
+    <div className="border border-line bg-asphalt/60 p-3">
+      <label className="block text-xs uppercase tracking-[0.14em] text-foam-muted">
+        {label}
+      </label>
+      <select
+        value={state.playerId ?? ""}
+        onChange={(e) => {
+          const value = e.target.value;
+          onChange(value === "" ? EMPTY_RPS : { ...state, playerId: Number(value) });
+        }}
+        className="mt-2 w-full border border-line bg-asphalt px-3 py-2 text-foam"
+      >
+        <option value="">— kein Auslos-Spieler —</option>
+        {roster.map((p) => (
+          <option key={p.playerId} value={p.playerId}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+
+      {state.playerId !== null ? (
+        <div className="mt-3">
+          <StatControl
+            label="Ehrensteine"
+            value={state.ehrensteinCount}
+            highlight
+            onInc={() => onChange({ ...state, ehrensteinCount: state.ehrensteinCount + 1 })}
+            onDec={() =>
+              onChange({ ...state, ehrensteinCount: Math.max(0, state.ehrensteinCount - 1) })
+            }
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }

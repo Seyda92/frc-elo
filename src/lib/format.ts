@@ -14,6 +14,13 @@ export function hitRate(stats: { throws: number; hits: number }): number {
   return Math.round((stats.hits / stats.throws) * 100);
 }
 
+/** Ehrensteine (D22) pro Antritt zur Auslosung — nicht pro gespieltem Spiel,
+ *  da nicht jedes Match eine Auslosung hat. */
+export function ehrensteinePerAntritt(stats: { ehrensteine: number; antritte: number }): number {
+  if (stats.antritte === 0) return 0;
+  return Math.round((stats.ehrensteine / stats.antritte) * 100) / 100;
+}
+
 export const LEADERBOARD_SORT_KEYS = ["elo", "quote", "games", "bonusBeers", "wins"] as const;
 export type LeaderboardSortKey = (typeof LEADERBOARD_SORT_KEYS)[number];
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;

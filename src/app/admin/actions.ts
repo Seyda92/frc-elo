@@ -13,6 +13,7 @@ import {
   matchParticipation,
   matchPlannedRoster,
   matchReferee,
+  matchRpsDraw,
   matchTeam,
   player,
   playerRatingCurrent,
@@ -119,6 +120,39 @@ export async function createClub(
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true, message: `Verein „${name}" angelegt.` };
+}
+
+/** Bearbeitet Stammdaten eines vorhandenen Vereins (D23) — analog zu updatePlayer. */
+export async function updateClub(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
+  const clubId = requiredId(formData, "club_id");
+  if (clubId === null) return { ok: false, error: "Ungültiger Verein." };
+
+  const name = requiredText(formData, "name");
+  if (!name) return { ok: false, error: "Name ist ein Pflichtfeld." };
+
+  const city = optionalText(formData, "city");
+
+  try {
+    await db.update(club).set({ name, city }).where(eq(club.clubId, clubId));
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return { ok: false, error: "Diesen Verein gibt es bereits." };
+    }
+    console.error("updateClub", err);
+    return { ok: false, error: "Verein konnte nicht gespeichert werden." };
+  }
+
+  revalidatePath("/admin/vereine");
+  revalidatePath(`/admin/vereine/${clubId}/bearbeiten`);
+  revalidatePath("/admin/events");
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: `Verein „${name}" gespeichert.` };
 }
 
 /**
@@ -363,8 +397,10 @@ export async function createEvent(
     return { ok: false, error: "Das Ende darf nicht vor dem Beginn liegen." };
   }
 
+  const location = optionalText(formData, "location");
+
   try {
-    await db.insert(event).values({ name, clubId, startsOn, endsOn });
+    await db.insert(event).values({ name, clubId, startsOn, endsOn, location });
   } catch (err) {
     console.error("createEvent", err);
     return { ok: false, error: "Event konnte nicht angelegt werden." };
@@ -374,6 +410,52 @@ export async function createEvent(
   revalidatePath("/admin");
   revalidatePath("/");
   return { ok: true, message: `Event „${name}" angelegt.` };
+}
+
+/**
+ * Bearbeitet Stammdaten eines vorhandenen Events (D23) — analog zu
+ * updatePlayer. `location` überschreibt beim Leeren wieder auf null,
+ * damit der Fallback auf den Vereinsort wieder greift.
+ */
+export async function updateEvent(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
+  const eventId = requiredId(formData, "event_id");
+  if (eventId === null) return { ok: false, error: "Ungültiges Event." };
+
+  const name = requiredText(formData, "name");
+  if (!name) return { ok: false, error: "Name ist ein Pflichtfeld." };
+
+  const clubId = requiredId(formData, "club_id");
+  if (clubId === null) return { ok: false, error: "Bitte einen Verein auswählen." };
+
+  const startsOn = optionalText(formData, "starts_on");
+  const endsOn = optionalText(formData, "ends_on");
+  if (startsOn && endsOn && endsOn < startsOn) {
+    return { ok: false, error: "Das Ende darf nicht vor dem Beginn liegen." };
+  }
+
+  const location = optionalText(formData, "location");
+
+  try {
+    await db
+      .update(event)
+      .set({ name, clubId, startsOn, endsOn, location })
+      .where(eq(event.eventId, eventId));
+  } catch (err) {
+    console.error("updateEvent", err);
+    return { ok: false, error: "Event konnte nicht gespeichert werden." };
+  }
+
+  revalidatePath("/admin/events");
+  revalidatePath(`/admin/events/${eventId}/bearbeiten`);
+  revalidatePath("/events");
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: `Event „${name}" gespeichert.` };
 }
 
 /**
@@ -723,6 +805,20 @@ export async function scoreMatch(
         .update(match)
         .set({ note: input.note ?? undefined, endedAt: sql`now()` })
         .where(eq(match.matchId, matchId));
+
+      // Schnick-Schnack-Schnuck-Auslosung (D22), optional je Seite — siehe
+      // validateRpsDrawInput. Wird wie der Rest des Ergebnisses erst hier,
+      // beim finalen Speichern, persistiert (kein Live-Zwischenstand).
+      if (input.rpsDraw.length > 0) {
+        await tx.insert(matchRpsDraw).values(
+          input.rpsDraw.map((row) => ({
+            matchId,
+            side: row.side,
+            playerId: row.playerId,
+            ehrensteinCount: row.ehrensteinCount,
+          })),
+        );
+      }
 
       // Kader-Platzhalter löschen — ab hier ist das Match "bewertet"
       // (match_team-Zeilen existieren), nicht mehr "geplant".

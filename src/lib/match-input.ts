@@ -385,6 +385,7 @@ export type ScoringPayload = {
   note: string | null;
   teamA: PayloadRow[];
   teamB: PayloadRow[];
+  rpsDraw?: RpsDrawPayload | null;
 };
 
 export type NormalizedScoringInput = {
@@ -392,6 +393,7 @@ export type NormalizedScoringInput = {
   note: string | null;
   teamA: NormalizedRow[];
   teamB: NormalizedRow[];
+  rpsDraw: NormalizedRpsDraw[];
 };
 
 export type ScoringValidationResult =
@@ -451,7 +453,64 @@ export function validateScoringInput(
   const note =
     typeof raw.note === "string" && raw.note.trim().length > 0 ? raw.note.trim() : null;
 
-  return { ok: true, value: { winner, note, teamA, teamB } };
+  const rpsDrawResult = validateRpsDrawInput(raw.rpsDraw, rosterTeamA, rosterTeamB);
+  if (!rpsDrawResult.ok) return rpsDrawResult;
+
+  return { ok: true, value: { winner, note, teamA, teamB, rpsDraw: rpsDrawResult.value } };
+}
+
+/** Wire-Format für die optionale Schnick-Schnack-Schnuck-Auslosung (D22):
+ *  je Seite höchstens ein auslosender Spieler mit einem Ehrenstein-Zähler.
+ *  Kein Rundenlog, siehe migrations/0010_rps_draw.sql. */
+export type RpsDrawPayloadRow = { playerId: string; ehrensteinCount: number };
+export type RpsDrawPayload = { A?: RpsDrawPayloadRow | null; B?: RpsDrawPayloadRow | null };
+
+export type NormalizedRpsDraw = { side: "A" | "B"; playerId: number; ehrensteinCount: number };
+
+/**
+ * Validiert die Auslosung gegen den bereits feststehenden Kader (wie
+ * validateScoringInput): der Spieler pro Seite muss tatsächlich auf dieser
+ * Seite stehen. Beide Seiten sind unabhängig optional — eine Auslosung
+ * findet nicht bei jedem Match statt.
+ */
+export function validateRpsDrawInput(
+  raw: unknown,
+  rosterTeamA: number[],
+  rosterTeamB: number[],
+): { ok: true; value: NormalizedRpsDraw[] } | { ok: false; error: string } {
+  if (raw === null || raw === undefined) return { ok: true, value: [] };
+  if (!isPlainObject(raw)) {
+    return { ok: false, error: "Formulardaten sind unvollständig." };
+  }
+
+  const rosterBySide: Record<"A" | "B", Set<number>> = {
+    A: new Set(rosterTeamA),
+    B: new Set(rosterTeamB),
+  };
+
+  const result: NormalizedRpsDraw[] = [];
+
+  for (const side of ["A", "B"] as const) {
+    const row = raw[side];
+    if (row === null || row === undefined) continue;
+    if (!isPlainObject(row)) {
+      return { ok: false, error: "Formulardaten sind unvollständig." };
+    }
+    const playerId = parsePositiveInt(row.playerId);
+    if (playerId === null) {
+      return { ok: false, error: "Formulardaten sind unvollständig." };
+    }
+    if (!rosterBySide[side].has(playerId)) {
+      return { ok: false, error: "Der Auslos-Spieler muss im jeweiligen Team stehen." };
+    }
+    const ehrensteinCount = parseNonNegativeInt(row.ehrensteinCount);
+    if (ehrensteinCount === null) {
+      return { ok: false, error: "Ehrensteine müssen eine ganze Zahl ab 0 sein." };
+    }
+    result.push({ side, playerId, ehrensteinCount });
+  }
+
+  return { ok: true, value: result };
 }
 
 export type RatingBefore = { gamesPlayed: number; wins: number; losses: number };

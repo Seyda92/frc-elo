@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EloSparkline } from "@/components/EloSparkline";
 import { getPlayerDetail, getPlayerRecentMatches, getPrimaryClub } from "@/db/queries";
-import { formatDateTime, hitRate } from "@/lib/format";
+import { ehrensteinePerAntritt, formatDateTime, hitRate } from "@/lib/format";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -106,6 +106,21 @@ export default async function PlayerPage({ params }: Props) {
             />
           </div>
         </section>
+
+        {player.antritte > 0 ? (
+          <section className="border border-line bg-asphalt-raised/40">
+            <header className="border-b border-line px-4 py-4 sm:px-5">
+              <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
+                Ehrenstein
+              </h2>
+            </header>
+            <div className="grid grid-cols-3 gap-2 p-3 sm:p-4">
+              <StatCell label="Ehrensteine" value={player.ehrensteine} highlight />
+              <StatCell label="Pro Antritt" value={ehrensteinePerAntritt(player)} />
+              <StatCell label="Antritte" value={player.antritte} />
+            </div>
+          </section>
+        ) : null}
 
         {player.eloHistory.length >= 2 ? (
           <section className="border border-line bg-asphalt-raised/40">

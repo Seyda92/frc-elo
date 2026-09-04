@@ -5,6 +5,7 @@ import {
   deriveTeamScores,
   validateLiveStatsInput,
   validatePlannedMatchInput,
+  validateRpsDrawInput,
   validateScoringInput,
   type PlannedMatchFormPayload,
   type ScoringPayload,
@@ -313,6 +314,72 @@ test("bewerten: kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
       assert.equal(result.ok, false);
     });
   }
+});
+
+// --- validateRpsDrawInput (D22: Schnick-Schnack-Schnuck-Auslosung) ---
+
+test("rpsDraw: fehlt komplett (null/undefined) ist gueltig, keine Auslosung ist der Normalfall", () => {
+  for (const bad of [null, undefined]) {
+    const result = validateRpsDrawInput(bad, [1], [2]);
+    assert.equal(result.ok, true);
+    if (result.ok) assert.deepEqual(result.value, []);
+  }
+});
+
+test("rpsDraw: nur eine Seite ausgefuellt ist gueltig", () => {
+  const result = validateRpsDrawInput({ A: { playerId: "1", ehrensteinCount: 3 } }, [1], [2]);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.value, [{ side: "A", playerId: 1, ehrensteinCount: 3 }]);
+  }
+});
+
+test("rpsDraw: beide Seiten ausgefuellt werden beide uebernommen", () => {
+  const result = validateRpsDrawInput(
+    { A: { playerId: "1", ehrensteinCount: 2 }, B: { playerId: "2", ehrensteinCount: 0 } },
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.length, 2);
+});
+
+test("rpsDraw: Auslos-Spieler muss im jeweiligen Team stehen", () => {
+  const result = validateRpsDrawInput({ A: { playerId: "2", ehrensteinCount: 0 } }, [1], [2]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Team/);
+});
+
+test("rpsDraw: negativer Ehrenstein-Zaehler wird abgelehnt", () => {
+  const result = validateRpsDrawInput({ A: { playerId: "1", ehrensteinCount: -1 } }, [1], [2]);
+  assert.equal(result.ok, false);
+});
+
+test("rpsDraw: kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
+  for (const bad of ["text", 42, []]) {
+    assert.doesNotThrow(() => {
+      const result = validateRpsDrawInput(bad, [1], [2]);
+      assert.equal(result.ok, false);
+    });
+  }
+});
+
+test("bewerten: rpsDraw wird durchgereicht, wenn im Payload vorhanden", () => {
+  const result = validateScoringInput(
+    scoringPayload({ rpsDraw: { A: { playerId: "1", ehrensteinCount: 1 }, B: null } }),
+    [1],
+    [2],
+  );
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.value.rpsDraw, [{ side: "A", playerId: 1, ehrensteinCount: 1 }]);
+  }
+});
+
+test("bewerten: fehlendes rpsDraw im Payload ergibt eine leere Liste, kein Fehler", () => {
+  const result = validateScoringInput(scoringPayload(), [1], [2]);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.value.rpsDraw, []);
 });
 
 // --- deriveTeamScores ---

@@ -26,6 +26,9 @@ export type Player = {
   games: number;
   avatarInitials: string;
   eloHistory: EloPoint[];
+  /** Schnick-Schnack-Schnuck-Auslosung (D22), siehe match_rps_draw. */
+  ehrensteine: number;
+  antritte: number;
 };
 
 export type EventSummary = {

@@ -8,6 +8,7 @@ import {
   matchParticipation,
   matchPlannedRoster,
   matchReferee,
+  matchRpsDraw,
   matchTeam,
   player,
   playerRatingCurrent,
@@ -137,6 +138,7 @@ export async function getAllEvents(): Promise<EventSummary[]> {
     .select({
       eventId: event.eventId,
       name: event.name,
+      location: event.location,
       startsOn: event.startsOn,
       endsOn: event.endsOn,
       clubName: club.name,
@@ -152,7 +154,9 @@ export async function getAllEvents(): Promise<EventSummary[]> {
     return {
       id: String(row.eventId),
       name: row.name,
-      location: row.clubCity ?? row.clubName ?? "",
+      // Eigener Event-Ort hat Vorrang vor dem abgeleiteten Vereinsort
+      // (D23) — nur wenn keiner gesetzt ist, greift der alte Fallback.
+      location: row.location ?? row.clubCity ?? row.clubName ?? "",
       startsAt,
       endsAt,
       status: deriveEventStatus(startsAt, endsAt),
@@ -440,8 +444,20 @@ export async function getLeaderboard(
 
   const statsByPlayer = new Map(statRows.map((s) => [s.playerId, s]));
 
+  const rpsRows = await db
+    .select({
+      playerId: matchRpsDraw.playerId,
+      ehrensteine: sql<string>`coalesce(sum(${matchRpsDraw.ehrensteinCount}), 0)`,
+      antritte: sql<string>`count(*)`,
+    })
+    .from(matchRpsDraw)
+    .groupBy(matchRpsDraw.playerId);
+
+  const rpsByPlayer = new Map(rpsRows.map((r) => [r.playerId, r]));
+
   const players: Player[] = base.map((row) => {
     const stats = statsByPlayer.get(row.playerId);
+    const rps = rpsByPlayer.get(row.playerId);
     return {
       id: String(row.playerId),
       name: row.name,
@@ -457,6 +473,8 @@ export async function getLeaderboard(
       games: row.gamesPlayed ?? 0,
       avatarInitials: initials(row.name),
       eloHistory: [],
+      ehrensteine: Number(rps?.ehrensteine ?? 0),
+      antritte: Number(rps?.antritte ?? 0),
     };
   });
 
@@ -723,6 +741,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       eventName: event.name,
+      eventLocation: event.location,
       clubCity: club.city,
     })
     .from(match)
@@ -792,7 +811,8 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
   return {
     ...summary,
     eventName: row.eventName ?? undefined,
-    eventLocation: row.clubCity ?? undefined,
+    // Eigener Event-Ort hat Vorrang vor dem abgeleiteten Vereinsort (D23).
+    eventLocation: row.eventLocation ?? row.clubCity ?? undefined,
     note: row.note ?? undefined,
     playerStats,
   };
@@ -851,6 +871,14 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
     .from(matchParticipation)
     .where(eq(matchParticipation.playerId, playerId));
 
+  const [rpsRow] = await db
+    .select({
+      ehrensteine: sql<string>`coalesce(sum(${matchRpsDraw.ehrensteinCount}), 0)`,
+      antritte: sql<string>`count(*)`,
+    })
+    .from(matchRpsDraw)
+    .where(eq(matchRpsDraw.playerId, playerId));
+
   const eloHistory = await getPlayerRatingHistory(playerId);
 
   return {
@@ -868,6 +896,8 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
     games: row.gamesPlayed ?? 0,
     avatarInitials: initials(row.name),
     eloHistory,
+    ehrensteine: Number(rpsRow?.ehrensteine ?? 0),
+    antritte: Number(rpsRow?.antritte ?? 0),
   };
 }
 
@@ -903,5 +933,58 @@ export async function getPlayerById(playerId: number): Promise<PlayerEditDetail 
     jerseyNumber: row.jerseyNumber,
     clubId: row.clubId,
     isActive: row.isActive === 1,
+  };
+}
+
+export type ClubEditDetail = {
+  clubId: number;
+  name: string;
+  city: string | null;
+};
+
+/** Für /admin/vereine/[id]/bearbeiten — Stammdaten eines einzelnen Vereins (D23). */
+export async function getClubById(clubId: number): Promise<ClubEditDetail | undefined> {
+  const [row] = await db
+    .select({ clubId: club.clubId, name: club.name, city: club.city })
+    .from(club)
+    .where(eq(club.clubId, clubId));
+
+  if (!row) return undefined;
+
+  return { clubId: row.clubId, name: row.name, city: row.city };
+}
+
+export type EventEditDetail = {
+  eventId: number;
+  name: string;
+  clubId: number | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  location: string | null;
+};
+
+/** Für /admin/events/[id]/bearbeiten — Stammdaten eines einzelnen Events (D23). */
+export async function getEventById(eventId: number): Promise<EventEditDetail | undefined> {
+  const [row] = await db
+    .select({
+      eventId: event.eventId,
+      name: event.name,
+      clubId: event.clubId,
+      startsOn: event.startsOn,
+      endsOn: event.endsOn,
+      location: event.location,
+    })
+    .from(event)
+    .where(eq(event.eventId, eventId));
+
+  if (!row) return undefined;
+
+  return {
+    eventId: row.eventId,
+    name: row.name,
+    clubId: row.clubId,
+    startsOn: toDateOnlyString(row.startsOn),
+    endsOn: toDateOnlyString(row.endsOn),
+    location: row.location,
   };
 }
