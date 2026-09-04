@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "node --test src/lib/*.test.ts",
-    "create-admin": "node --env-file=.env.local scripts/create-admin.ts"
+    "create-admin": "node --env-file=.env.local scripts/create-admin.ts",
+    "reset-data": "node --env-file=.env.local scripts/reset-data.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

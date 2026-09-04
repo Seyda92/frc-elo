@@ -1,0 +1,39 @@
+# Lokaler Testlauf vor dem Deploy — eigener Postgres-Container statt des
+# externen frcspieldaten_default-Netzes aus docker-compose.yml (das ist die
+# Produktions-Compose-Datei für den VPS und setzt eine dort schon laufende
+# DB voraus). Aufruf: docker compose -f docker-compose.local.yml up --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: frc
+      POSTGRES_PASSWORD: frc_local_test
+      POSTGRES_DB: frcspieldaten
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - frc_elo_local_db:/var/lib/postgresql/data
+      - ./schema_postgres.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frc -d frcspieldaten"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  frc-elo-app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://frc:frc_local_test@db:5432/frcspieldaten
+      AUTH_SECRET: local-test-secret-not-for-production-use-only-change-me
+      USE_SECURE_COOKIES: "false"
+    ports:
+      - "127.0.0.1:8080:3000"
+
+volumes:
+  frc_elo_local_db:

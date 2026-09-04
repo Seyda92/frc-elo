@@ -614,3 +614,29 @@ konsistent, egal in welcher Reihenfolge Spiele synchronisiert wurden.
   player_id`). Getrennt von `player`, damit Schiedsrichter-Statistik nicht jede
   einfache Spieler-Abfrage mitschleppt.
 ```
+
+## Testdaten zurücksetzen
+
+Für den Wechsel von Entwicklungs- zu Echtbetrieb: `npm run reset-data`
+(`scripts/reset-data.ts`, SQL-Referenz in `scripts/reset-data.sql`) löscht
+Spieler, Matches (inkl. Teams, Teilnahmen, Schiedsrichter-Zuordnung, geplanter
+Kader), Rating-Verlauf und -Cache sowie Events. Vereine (`club`) bleiben
+bestehen — ohne mindestens einen wäre kein neuer Spieler anlegbar. `app_user`
+(Owner und Schiris) sowie `rating_model`/`team_factor` werden von keinem
+`DELETE` berührt.
+
+- **`app_user.player_id`** ist der einzige Fremdschlüssel, der von einem
+  Benutzerkonto auf `player` zeigt, ohne `ON DELETE SET NULL`. Das Skript
+  setzt ihn vor dem Löschen der Spieler explizit auf `NULL` — verlustfrei, da
+  er ohnehin auf einen gleich verschwindenden Spieler zeigt. Das Konto selbst
+  (Passwort-Hash, Rolle, `is_active`) bleibt unverändert.
+- **Bewusst kein `TRUNCATE ... CASCADE`**: Weil `app_user.player_id` auf
+  `player` zeigt, würde `TRUNCATE player CASCADE` `app_user` mitleeren —
+  samt Owner. Das Skript verwendet ausschließlich einzelne `DELETE FROM`.
+- **ID-Sequenzen** werden nach dem Löschen auf 1 zurückgesetzt — außer
+  `app_user.user_id` und `club.club_id`. Die Session ist ein signiertes
+  Cookie mit der `user_id` im Payload (kein Session-Table); ein Reset dieser
+  Sequenz würde ein noch gültiges Cookie auf ein anderes Konto zeigen lassen.
+- Das Skript bricht ab, wenn keine `owner`-Zeile in `app_user` existiert, und
+  verlangt vor dem eigentlichen Löschen die Eingabe von `LOESCHEN` — bei
+  einem irreversiblen Vollreset reicht ein versehentliches Enter nicht.
