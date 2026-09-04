@@ -67,9 +67,9 @@ test("MIN_PASSWORD_LENGTH ist auf 6 festgelegt", () => {
   assert.equal(MIN_PASSWORD_LENGTH, 6);
 });
 
-test("generateRandomPassword liefert ein Passwort ueber MIN_PASSWORD_LENGTH", () => {
+test("generateRandomPassword liefert exakt MIN_PASSWORD_LENGTH Zeichen", () => {
   const pw = generateRandomPassword();
-  assert.ok(pw.length >= MIN_PASSWORD_LENGTH, `Passwort zu kurz: ${pw.length}`);
+  assert.equal(pw.length, MIN_PASSWORD_LENGTH);
 });
 
 test("generateRandomPassword liefert bei zwei Aufrufen unterschiedliche Werte", () => {

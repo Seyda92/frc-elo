@@ -130,10 +130,11 @@ export function getDummyHash(): Promise<string> {
 
 /**
  * Erzeugt ein zufälliges Klartext-Passwort für den Owner-Reset (siehe
- * resetRefereePassword in actions.ts) — base64url ist deutlich über
- * MIN_PASSWORD_LENGTH und enthält keine Zeichen, die beim mündlichen
- * Weitergeben am Turniertag verwechselt werden (kein +/=, kein Leerzeichen).
+ * resetRefereePassword in actions.ts) — exakt MIN_PASSWORD_LENGTH Zeichen,
+ * kurz genug zum mündlichen Weitergeben/Abtippen am Turniertag. base64url
+ * enthält keine Zeichen, die dabei verwechselt werden (kein +/=, kein
+ * Leerzeichen). randomBytes(5) liefert 7 base64url-Zeichen, auf 6 gekürzt.
  */
 export function generateRandomPassword(): string {
-  return randomBytes(9).toString("base64url");
+  return randomBytes(5).toString("base64url").slice(0, MIN_PASSWORD_LENGTH);
 }
