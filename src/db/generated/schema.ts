@@ -91,6 +91,9 @@ export const matchPlannedRoster = pgTable("match_planned_roster", {
 	matchId: integer("match_id").notNull(),
 	playerId: integer("player_id").notNull(),
 	side: text().notNull(),
+	throws: integer().default(0).notNull(),
+	hits: integer().default(0).notNull(),
+	bonusBeer: integer("bonus_beer").default(0).notNull(),
 }, (table) => [
 	index("idx_planned_roster_match").using("btree", table.matchId.asc().nullsLast().op("int4_ops")),
 	foreignKey({

@@ -201,6 +201,12 @@ export type MatchEntryPlayer = {
    *  Werte innerhalb der Transaktion neu (siehe scoreMatch). */
   rating: number;
   gamesPlayed: number;
+  /** Zwischenstand aus match_planned_roster, nur von getLiveMatch()
+   *  befüllt (siehe saveLiveStats in actions.ts) — bei anderen Aufrufern
+   *  (Anlegen-Formular, Bewerten-Seite mit eigenem State) undefined. */
+  liveThrows?: number;
+  liveHits?: number;
+  liveBonusBeer?: number;
 };
 
 /** Aktive Spieler für die Match-Erfassung, inkl. aktueller Wertung. */
@@ -298,6 +304,9 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
     .select({
       playerId: matchPlannedRoster.playerId,
       side: matchPlannedRoster.side,
+      throws: matchPlannedRoster.throws,
+      hits: matchPlannedRoster.hits,
+      bonusBeer: matchPlannedRoster.bonusBeer,
       name: player.displayName,
       alias: player.alias,
       jerseyNumber: player.jerseyNumber,
@@ -328,6 +337,9 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
     clubName: r.clubName ?? "—",
     rating: r.rating != null ? Math.round(Number(r.rating)) : FALLBACK_RATING,
     gamesPlayed: r.gamesPlayed ?? 0,
+    liveThrows: r.throws,
+    liveHits: r.hits,
+    liveBonusBeer: r.bonusBeer,
   });
 
   const [refereeRow] = await db

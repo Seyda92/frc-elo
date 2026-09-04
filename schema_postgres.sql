@@ -182,11 +182,19 @@ CREATE TRIGGER trg_participant_not_referee
 -- diese Tabelle - ein Schiri-Konflikt beim Anlegen wird nur in der
 -- TypeScript-Validierung abgefangen, nicht auf DB-Ebene.
 CREATE TABLE match_planned_roster (
-    match_id  INTEGER NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
-    player_id INTEGER NOT NULL REFERENCES player(player_id),
-    side      TEXT    NOT NULL,
+    match_id   INTEGER NOT NULL REFERENCES match(match_id) ON DELETE CASCADE,
+    player_id  INTEGER NOT NULL REFERENCES player(player_id),
+    side       TEXT    NOT NULL,
+    -- Zwischenstand fuer /live waehrend der Erfassung, siehe migrations/0009.
+    -- Ohne Einfluss auf die Elo-Berechnung; verschwindet mit der Zeile beim
+    -- finalen Bewerten.
+    throws     INTEGER NOT NULL DEFAULT 0,
+    hits       INTEGER NOT NULL DEFAULT 0,
+    bonus_beer INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (match_id, player_id),
-    CHECK (side IN ('A','B'))
+    CHECK (side IN ('A','B')),
+    CHECK (hits <= throws),
+    CHECK (bonus_beer BETWEEN 0 AND 10)
 );
 
 CREATE INDEX idx_planned_roster_match ON match_planned_roster(match_id);

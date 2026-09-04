@@ -118,6 +118,55 @@ function validateRows(
   return { ok: true, value: normalized };
 }
 
+/**
+ * Validiert den Live-Zwischenstand beim Tippen auf der Bewerten-Seite
+ * (siehe saveLiveStats in actions.ts) — dieselben Feld-Regeln wie
+ * validateRows (Bonusbier 0..10, hits <= throws), aber ohne "mindestens
+ * ein Spieler"/Team-Größen-Prüfung: hier kommt immer der volle,
+ * bekannte Kader rein, nicht ein neu zusammengestelltes Team.
+ */
+export function validateLiveStatsInput(
+  rows: unknown,
+): { ok: true; value: NormalizedRow[] } | { ok: false; error: string } {
+  if (!Array.isArray(rows)) {
+    return { ok: false, error: "Formulardaten sind unvollständig." };
+  }
+
+  const normalized: NormalizedRow[] = [];
+  const seen = new Set<number>();
+
+  for (const row of rows) {
+    if (!isPlainObject(row)) {
+      return { ok: false, error: "Formulardaten sind unvollständig." };
+    }
+    const playerId = parsePositiveInt(row.playerId);
+    if (playerId === null) {
+      return { ok: false, error: "Formulardaten sind unvollständig." };
+    }
+    if (seen.has(playerId)) {
+      return { ok: false, error: "Ein Spieler steht mehrfach in den Daten." };
+    }
+    seen.add(playerId);
+
+    const bonusBeer = parseNonNegativeInt(row.bonusBeer);
+    if (bonusBeer === null || bonusBeer > 10) {
+      return { ok: false, error: "Bonusbier muss zwischen 0 und 10 liegen." };
+    }
+    const throwsValue = parseNonNegativeInt(row.throws);
+    const hitsValue = parseNonNegativeInt(row.hits);
+    if (throwsValue === null || hitsValue === null) {
+      return { ok: false, error: "Würfe und Treffer müssen ganze Zahlen ab 0 sein." };
+    }
+    if (hitsValue > throwsValue) {
+      return { ok: false, error: "Treffer dürfen die Würfe nicht übersteigen." };
+    }
+
+    normalized.push({ playerId, bonusBeer, throws: throwsValue, hits: hitsValue });
+  }
+
+  return { ok: true, value: normalized };
+}
+
 /** Wie validateRows, aber ohne Statistikfelder — für den Anlegen-Schritt, in
  *  dem nur der Kader feststeht und noch nichts gespielt wurde. */
 function validatePlayerIdRows(

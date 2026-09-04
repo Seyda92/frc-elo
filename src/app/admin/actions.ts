@@ -31,6 +31,7 @@ import { computeMatchDeltas, type EloParams } from "@/lib/elo";
 import {
   deriveRatingUpdates,
   deriveTeamScores,
+  validateLiveStatsInput,
   validatePlannedMatchInput,
   validateScoringInput,
   type NormalizedRow,
@@ -774,6 +775,61 @@ export async function scoreMatch(
   // redirect() wirft eine Next-interne Exception und muss daher außerhalb
   // des try/catch oben passieren.
   redirect(`/spiel/${matchId}`);
+}
+
+/**
+ * Speichert den Live-Zwischenstand (Würfe/Treffer/Bonusbier) während der
+ * Erfassung, damit /live ihn per Polling anzeigen kann — siehe
+ * ScoreMatchForm.tsx (debounced Aufruf bei jeder Änderung). Rein additiv
+ * zum eigentlichen Bewerten-Flow: scoreMatch() liest weiterhin nur das
+ * übermittelte Formular-Payload, nicht diese Zwischenwerte. Ein
+ * Fehlschlag hier darf die Erfassung nicht stören, deshalb bewusst kein
+ * console.error-Rauschen bei simplen Validierungsfehlern und keine
+ * Transaktion/Sperre nötig — das Endergebnis überschreibt ohnehin alles.
+ */
+export async function saveLiveStats(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
+  const matchIdRaw = formData.get("match_id");
+  const matchId = typeof matchIdRaw === "string" ? Number(matchIdRaw) : NaN;
+  if (!Number.isInteger(matchId) || matchId <= 0) {
+    return { ok: false, error: "Ungültiges Match." };
+  }
+
+  const raw = formData.get("rows");
+  if (typeof raw !== "string") return { ok: false, error: "Formulardaten fehlen." };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "Formulardaten sind beschädigt." };
+  }
+
+  const validated = validateLiveStatsInput(parsed);
+  if (!validated.ok) return { ok: false, error: validated.error };
+
+  try {
+    for (const row of validated.value) {
+      await db
+        .update(matchPlannedRoster)
+        .set({ throws: row.throws, hits: row.hits, bonusBeer: row.bonusBeer })
+        .where(
+          and(
+            eq(matchPlannedRoster.matchId, matchId),
+            eq(matchPlannedRoster.playerId, row.playerId),
+          ),
+        );
+    }
+  } catch (err) {
+    console.error("saveLiveStats", err);
+    return { ok: false, error: "Zwischenstand konnte nicht gespeichert werden." };
+  }
+
+  return { ok: true, message: "Zwischenstand gespeichert." };
 }
 
 class PlannedMatchNotFoundError extends Error {}

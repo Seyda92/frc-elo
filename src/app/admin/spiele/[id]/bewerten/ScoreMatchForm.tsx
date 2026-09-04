@@ -1,13 +1,17 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { scoreMatch } from "@/app/admin/actions";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { saveLiveStats, scoreMatch } from "@/app/admin/actions";
 import { Field, FormStatus, SubmitButton } from "@/components/form";
 import { StatControl } from "@/components/StatControl";
 import { WinnerButton } from "@/components/WinnerButton";
 import type { ScoringPayload } from "@/lib/match-input";
 import type { ActionResult } from "@/lib/action-result";
 import type { MatchEntryPlayer } from "@/db/queries";
+
+/** Wartezeit nach der letzten Änderung, bevor der Zwischenstand für /live
+ *  gespeichert wird — vermeidet einen Request pro einzelnem +/--Klick. */
+const LIVE_STATS_DEBOUNCE_MS = 800;
 
 type RowState = { bonusBeer: number; throws: number; hits: number };
 const EMPTY_ROW: RowState = { bonusBeer: 0, throws: 0, hits: 0 };
@@ -35,8 +39,21 @@ export function ScoreMatchForm({
     null,
   );
 
+  // Startet mit dem zuletzt gespeicherten Live-Zwischenstand (falls vorhanden)
+  // statt immer bei 0 — sonst gingen bereits eingetragene Werte bei einem
+  // Reload der Seite verloren, obwohl saveLiveStats sie schon gesichert hat.
   const [rows, setRows] = useState<Map<number, RowState>>(
-    () => new Map([...teamA, ...teamB].map((p) => [p.playerId, { ...EMPTY_ROW }])),
+    () =>
+      new Map(
+        [...teamA, ...teamB].map((p) => [
+          p.playerId,
+          {
+            bonusBeer: p.liveBonusBeer ?? EMPTY_ROW.bonusBeer,
+            throws: p.liveThrows ?? EMPTY_ROW.throws,
+            hits: p.liveHits ?? EMPTY_ROW.hits,
+          },
+        ]),
+      ),
   );
   const [winner, setWinner] = useState<"A" | "B" | null>(null);
 
@@ -57,6 +74,36 @@ export function ScoreMatchForm({
       return next;
     });
   }
+
+  // Zwischenstand für /live speichern, debounced — vermeidet einen Request
+  // pro einzelnem +/--Klick. Fehler werden bewusst nicht dem Nutzer
+  // gemeldet: das ist ein Nice-to-have für Zuschauer, das autoritative
+  // Speichern bleibt der finale "Ergebnis speichern"-Klick (scoreMatch).
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const rowsPayload = [...teamA, ...teamB].map((p) => {
+        const row = rows.get(p.playerId) ?? EMPTY_ROW;
+        return {
+          playerId: String(p.playerId),
+          bonusBeer: row.bonusBeer,
+          throws: row.throws,
+          hits: row.hits,
+        };
+      });
+      const formData = new FormData();
+      formData.set("match_id", String(matchId));
+      formData.set("rows", JSON.stringify(rowsPayload));
+      saveLiveStats(null, formData).catch(() => {
+        // still — Zwischenspeichern ist best effort, siehe Kommentar oben.
+      });
+    }, LIVE_STATS_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teamA/teamB sind pro Aufruf stabile Props, matchId aendert sich nie
+  }, [rows]);
 
   function handleSubmit(formData: FormData) {
     const rowPayload = (p: MatchEntryPlayer) => {

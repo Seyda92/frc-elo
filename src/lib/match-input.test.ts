@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   deriveRatingUpdates,
   deriveTeamScores,
+  validateLiveStatsInput,
   validatePlannedMatchInput,
   validateScoringInput,
   type PlannedMatchFormPayload,
@@ -415,4 +416,53 @@ test("Zuordnung erfolgt ueber playerId, nicht ueber den Index (elo.ts liefert ei
   const byId = new Map(updates.map((u) => [u.playerId, u]));
   assert.equal(byId.get(1)!.wins, 1, "Spieler 1 ist in teamAIds und A gewinnt -> Sieg");
   assert.equal(byId.get(3)!.losses, 1, "Spieler 3 ist nicht in teamAIds -> Niederlage");
+});
+
+// --- validateLiveStatsInput ---
+
+test("liveStats: gueltige Zeilen werden akzeptiert", () => {
+  const result = validateLiveStatsInput([
+    { playerId: "1", bonusBeer: 0, throws: 5, hits: 3 },
+    { playerId: "2", bonusBeer: 2, throws: 4, hits: 4 },
+  ]);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.value.length, 2);
+    assert.equal(result.value[0].playerId, 1);
+  }
+});
+
+test("liveStats: leeres Array ist gueltig (kein Mindest-Kader noetig)", () => {
+  const result = validateLiveStatsInput([]);
+  assert.equal(result.ok, true);
+});
+
+test("liveStats: hits ueber throws wird abgelehnt", () => {
+  const result = validateLiveStatsInput([{ playerId: "1", bonusBeer: 0, throws: 2, hits: 5 }]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Treffer/);
+});
+
+test("liveStats: Bonusbier ueber 10 wird abgelehnt", () => {
+  const result = validateLiveStatsInput([{ playerId: "1", bonusBeer: 11, throws: 1, hits: 1 }]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Bonusbier/);
+});
+
+test("liveStats: doppelte playerId wird abgelehnt", () => {
+  const result = validateLiveStatsInput([
+    { playerId: "1", bonusBeer: 0, throws: 1, hits: 1 },
+    { playerId: "1", bonusBeer: 0, throws: 2, hits: 1 },
+  ]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /mehrfach/);
+});
+
+test("liveStats: kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
+  for (const bad of [null, undefined, "text", 42, {}]) {
+    assert.doesNotThrow(() => {
+      const result = validateLiveStatsInput(bad);
+      assert.equal(result.ok, false);
+    });
+  }
 });
