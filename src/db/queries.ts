@@ -419,35 +419,6 @@ export async function getLeaderboard(
   return sortLeaderboard(players, sortBy, direction);
 }
 
-export async function getFeaturedEvents(clubId: number): Promise<EventSummary[]> {
-  const rows = await db
-    .select({
-      eventId: event.eventId,
-      name: event.name,
-      startsOn: event.startsOn,
-      endsOn: event.endsOn,
-      clubCity: club.city,
-    })
-    .from(event)
-    .leftJoin(club, eq(club.clubId, event.clubId))
-    .where(eq(event.clubId, clubId));
-
-  return rows
-    .map((row) => {
-      const startsAt = toDateOnlyString(row.startsOn);
-      const endsAt = toDateOnlyString(row.endsOn);
-      return {
-        id: String(row.eventId),
-        name: row.name,
-        location: row.clubCity ?? row.name,
-        startsAt,
-        endsAt,
-        status: deriveEventStatus(startsAt, endsAt),
-      } satisfies EventSummary;
-    })
-    .filter((e) => e.status !== "past");
-}
-
 type MatchRow = {
   matchId: number;
   eventId: number | null;

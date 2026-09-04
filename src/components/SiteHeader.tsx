@@ -12,6 +12,7 @@ import { formatDateTime } from "@/lib/format";
 const publicLinks = [
   { href: "/", label: "Leaderboard" },
   { href: "/spiele", label: "Spiele" },
+  { href: "/events", label: "Events" },
 ];
 
 type User = { username: string; role: Role };

@@ -1,14 +1,6 @@
 import Link from "next/link";
+import { getLeaderboard, getPrimaryClub } from "@/db/queries";
 import {
-  getFeaturedEvents,
-  getLeaderboard,
-  getPlannedMatches,
-  getPrimaryClub,
-  getRecentMatches,
-} from "@/db/queries";
-import {
-  formatDate,
-  formatDateTime,
   LEADERBOARD_SORT_KEYS,
   SORT_DIRECTIONS,
   type LeaderboardSortKey,
@@ -48,12 +40,7 @@ export default async function HomePage({ searchParams }: Props) {
   const club = await getPrimaryClub();
   const clubId = club ? Number(club.id) : undefined;
 
-  const [ranked, recent, upcoming, featuredEvents] = await Promise.all([
-    clubId != null ? getLeaderboard(clubId, sortBy, direction) : Promise.resolve([]),
-    getRecentMatches(3),
-    getPlannedMatches(3),
-    clubId != null ? getFeaturedEvents(clubId) : Promise.resolve([]),
-  ]);
+  const ranked = clubId != null ? await getLeaderboard(clubId, sortBy, direction) : [];
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
@@ -118,95 +105,6 @@ export default async function HomePage({ searchParams }: Props) {
             ))}
           </ul>
         </section>
-
-        <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-          <section className="border border-line bg-asphalt-raised/40">
-            <header className="border-b border-line px-4 py-4 sm:px-5">
-              <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
-                Letzte Spiele
-              </h2>
-            </header>
-            <ul className="divide-y divide-line">
-              {recent.map((match) => (
-                <li key={match.id}>
-                  <Link
-                    href={`/spiel/${match.id}`}
-                    className="block px-4 py-4 transition hover:bg-rubber/30 sm:px-5"
-                  >
-                    <p className="text-xs uppercase tracking-[0.16em] text-foam-muted">
-                      {formatDateTime(match.playedAt)}
-                    </p>
-                    {match.name && (
-                      <p className="mt-1 font-display text-lg text-amber">{match.name}</p>
-                    )}
-                    <p className="mt-2 font-display text-xl text-foam sm:text-2xl">
-                      {match.scoreLabel}
-                    </p>
-                    <p className="mt-2 text-sm text-foam-muted">
-                      {match.teamA.map((p) => p.name.split(" ")[0]).join(", ")}
-                      <span className="mx-2 font-display text-amber">VS</span>
-                      {match.teamB.map((p) => p.name.split(" ")[0]).join(", ")}
-                    </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-amber">
-                      Spiel ansehen →
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="border border-line bg-asphalt-raised/40">
-            <header className="border-b border-line px-4 py-4 sm:px-5">
-              <h2 className="font-display text-2xl tracking-tight text-foam sm:text-3xl">
-                Events &amp; Planung
-              </h2>
-            </header>
-            <ul className="divide-y divide-line">
-              {featuredEvents.map((event) => (
-                <li key={event.id} className="px-4 py-4 sm:px-5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-display text-xl text-foam sm:text-2xl">
-                      {event.name}
-                    </p>
-                    <span
-                      className={`text-xs uppercase tracking-[0.14em] ${
-                        event.status === "ongoing" ? "text-amber" : "text-foam-muted"
-                      }`}
-                    >
-                      {event.status === "ongoing" ? "Läuft" : "Geplant"}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-foam-muted">
-                    {event.startsAt ? formatDate(event.startsAt) : "Termin offen"}
-                    {event.endsAt && event.endsAt !== event.startsAt
-                      ? ` – ${formatDate(event.endsAt)}`
-                      : ""}{" "}
-                    · {event.location}
-                  </p>
-                </li>
-              ))}
-              {upcoming.map((match) => (
-                <li key={match.id} className="px-4 py-4 sm:px-5">
-                  <p className="text-xs uppercase tracking-[0.16em] text-amber">
-                    Nächstes Match
-                  </p>
-                  {match.name && (
-                    <p className="mt-1 font-display text-lg text-foam">{match.name}</p>
-                  )}
-                  <p className="mt-2 font-display text-xl sm:text-2xl">
-                    {match.scoreLabel}
-                  </p>
-                  <p className="mt-2 text-sm text-foam-muted">
-                    {match.teamA.map((p) => p.name.split(" ")[0]).join(", ")}
-                    <span className="mx-2 font-display text-amber">VS</span>
-                    {match.teamB.map((p) => p.name.split(" ")[0]).join(", ")}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
 
         <p className="text-center text-sm text-foam-muted">{club?.name}</p>
       </div>
