@@ -598,6 +598,7 @@ export async function createPlannedMatch(
           name: input.name,
           teamAName: input.teamAName,
           teamBName: input.teamBName,
+          startedAt: input.playedAt.toISOString(),
         })
         .returning({ matchId: match.matchId });
       const newMatchId = insertedMatch.matchId;
@@ -712,10 +713,13 @@ export async function scoreMatch(
         params,
       );
 
-      // Notiz wird erst hier gesetzt, wenn das Spiel beendet ist.
-      if (input.note !== null) {
-        await tx.update(match).set({ note: input.note }).where(eq(match.matchId, matchId));
-      }
+      // Notiz wird erst hier gesetzt, wenn das Spiel beendet ist. ended_at
+      // wird bei jedem Bewerten gesetzt (Speicherzeitpunkt), unabhaengig
+      // davon, ob eine Notiz erfasst wurde.
+      await tx
+        .update(match)
+        .set({ note: input.note ?? undefined, endedAt: sql`now()` })
+        .where(eq(match.matchId, matchId));
 
       // Kader-Platzhalter löschen — ab hier ist das Match "bewertet"
       // (match_team-Zeilen existieren), nicht mehr "geplant".

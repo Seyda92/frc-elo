@@ -656,7 +656,10 @@ export async function getAllMatches(
       teamBName: match.teamBName,
     })
     .from(match)
-    .orderBy(desc(match.playedAt))
+    // Nach Abschluss sortieren, nicht nach Anlagedatum: ein spaeter
+    // bewertetes Match soll oben stehen, auch wenn played_at frueher liegt.
+    // Ohne ended_at (noch geplant) faellt COALESCE auf played_at zurueck.
+    .orderBy(desc(sql`coalesce(${match.endedAt}, ${match.playedAt})`))
     .limit(limit)
     .offset(offset);
   return { matches: await buildMatchSummaries(rows), total: Number(count) };

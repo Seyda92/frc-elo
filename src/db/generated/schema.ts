@@ -42,6 +42,8 @@ export const match = pgTable("match", {
 	name: text(),
 	teamAName: text("team_a_name"),
 	teamBName: text("team_b_name"),
+	startedAt: timestamp("started_at", { withTimezone: true, mode: 'string' }),
+	endedAt: timestamp("ended_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_match_event").using("btree", table.eventId.asc().nullsLast().op("int4_ops")),
 	foreignKey({

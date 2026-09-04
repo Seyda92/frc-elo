@@ -80,7 +80,9 @@ CREATE TABLE match (
     note       TEXT,
     name       TEXT,                                     -- optionaler Anzeigename (z.B. "Finale"), getrennt von note
     team_a_name TEXT,                                     -- optionaler Teamname Seite A, Fallback "Team A"
-    team_b_name TEXT                                      -- optionaler Teamname Seite B, Fallback "Team B"
+    team_b_name TEXT,                                     -- optionaler Teamname Seite B, Fallback "Team B"
+    started_at TIMESTAMPTZ,                               -- Anlegen-Zeitpunkt (= played_at beim Anlegen)
+    ended_at   TIMESTAMPTZ                                -- Speicherzeitpunkt beim Bewerten
 );
 
 -- Die zwei Seiten (Teams) eines Matches
