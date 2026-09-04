@@ -63,6 +63,6 @@ test("N muss eine Zweierpotenz sein, sonst false", async () => {
   assert.equal(result, false);
 });
 
-test("MIN_PASSWORD_LENGTH ist auf 12 festgelegt", () => {
-  assert.equal(MIN_PASSWORD_LENGTH, 12);
+test("MIN_PASSWORD_LENGTH ist auf 6 festgelegt", () => {
+  assert.equal(MIN_PASSWORD_LENGTH, 6);
 });

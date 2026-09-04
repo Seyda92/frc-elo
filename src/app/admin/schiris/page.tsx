@@ -36,7 +36,7 @@ export default async function AdminRefereesPage() {
               Neuer Schiri
             </h2>
             <p className="mt-1 text-sm text-foam-muted">
-              Mindestens 12 Zeichen Passwort. Der Owner-Status wird hier nicht vergeben.
+              Mindestens 6 Zeichen Passwort. Der Owner-Status wird hier nicht vergeben.
             </p>
           </header>
           <RefereeForm players={players} />
