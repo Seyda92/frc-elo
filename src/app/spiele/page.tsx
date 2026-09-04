@@ -78,6 +78,9 @@ export default async function MatchesPage({ searchParams }: Props) {
                       {m.teamB.map((p) => p.name.split(" ")[0]).join(", ")}
                     </p>
                     <p className="mt-2 font-display text-lg text-foam">{m.scoreLabel}</p>
+                    {m.note && (
+                      <p className="mt-2 text-sm text-foam-muted">{m.note}</p>
+                    )}
                   </Link>
                 </li>
               ))}

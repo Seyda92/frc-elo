@@ -29,6 +29,7 @@ import type {
   Club,
   EventSummary,
   MatchDetail,
+  MatchListItem,
   MatchPlayerStat,
   MatchSummary,
   Player,
@@ -644,7 +645,7 @@ export async function getPlannedMatches(limit?: number): Promise<MatchSummary[]>
 export async function getAllMatches(
   offset: number,
   limit: number,
-): Promise<{ matches: MatchSummary[]; total: number }> {
+): Promise<{ matches: MatchListItem[]; total: number }> {
   const [{ count }] = await db.select({ count: sql<string>`count(*)` }).from(match);
   const rows = await db
     .select({
@@ -654,6 +655,7 @@ export async function getAllMatches(
       name: match.name,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
+      note: match.note,
     })
     .from(match)
     // Nach Abschluss sortieren, nicht nach Anlagedatum: ein spaeter
@@ -662,7 +664,15 @@ export async function getAllMatches(
     .orderBy(desc(sql`coalesce(${match.endedAt}, ${match.playedAt})`))
     .limit(limit)
     .offset(offset);
-  return { matches: await buildMatchSummaries(rows), total: Number(count) };
+
+  const noteByMatchId = new Map(rows.map((r) => [String(r.matchId), r.note]));
+  const summaries = await buildMatchSummaries(rows);
+  const matches: MatchListItem[] = summaries.map((s) => ({
+    ...s,
+    note: noteByMatchId.get(s.id) ?? null,
+  }));
+
+  return { matches, total: Number(count) };
 }
 
 export async function getPlayerRecentMatches(
