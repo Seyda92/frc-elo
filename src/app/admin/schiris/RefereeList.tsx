@@ -1,7 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { setRefereeActive, setRefereePlayer, setRefereeRole } from "@/app/admin/actions";
+import {
+  resetRefereePassword,
+  setRefereeActive,
+  setRefereePlayer,
+  setRefereeRole,
+} from "@/app/admin/actions";
 import type { ActionResult } from "@/lib/action-result";
 import type { AppUser } from "@/db/queries";
 
@@ -67,6 +72,7 @@ function RefereeRow({
           </>
         )}
         <PlayerLinkForm user={user} players={players} />
+        <PasswordResetForm user={user} />
       </div>
     </li>
   );
@@ -126,6 +132,42 @@ function RoleToggleForm({ user }: { user: AppUser }) {
       </button>
       {state && !state.ok && <span className="text-xs text-clay">{state.error}</span>}
     </form>
+  );
+}
+
+/** Notfall-Passwort-Reset: erzeugt ein neues Passwort und zeigt es einmalig
+ *  im Klartext an (state.message der Server Action) — der Owner muss es
+ *  ablesen/weitergeben können, eine schmale Statuszeile reicht dafür nicht,
+ *  deshalb eine eigene, größere Anzeige statt FormStatus. */
+function PasswordResetForm({ user }: { user: AppUser }) {
+  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
+    resetRefereePassword,
+    null,
+  );
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <form action={formAction}>
+        <input type="hidden" name="user_id" value={user.userId} />
+        <button
+          type="submit"
+          disabled={pending}
+          className="min-h-10 border border-line px-3 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber disabled:opacity-50"
+        >
+          {pending ? "Setzt zurück…" : "Passwort zurücksetzen"}
+        </button>
+      </form>
+      {state && !state.ok && <span className="text-xs text-clay">{state.error}</span>}
+      {state && state.ok && (
+        <p className="max-w-xs border border-amber bg-amber/10 px-3 py-2 text-xs text-foam">
+          {state.message}
+          <br />
+          <span className="text-foam-muted">
+            Jetzt notieren — wird nirgends erneut angezeigt.
+          </span>
+        </p>
+      )}
+    </div>
   );
 }
 

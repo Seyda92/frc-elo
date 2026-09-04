@@ -36,7 +36,7 @@ import {
   type NormalizedRow,
 } from "@/lib/match-input";
 import type { ActionResult } from "@/lib/action-result";
-import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
+import { generateRandomPassword, hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import {
   isCheckViolation,
   isForeignKeyViolation,
@@ -893,6 +893,45 @@ export async function setRefereeActive(
 
   revalidatePath("/admin/schiris");
   return { ok: true, message: isActive ? "Schiri aktiviert." : "Schiri deaktiviert." };
+}
+
+/**
+ * Notfall-Passwort-Reset durch den Owner: erzeugt ein zufälliges Passwort,
+ * speichert nur dessen Hash und gibt den Klartext einmalig über
+ * ActionResult.message zurück — er wird an keiner anderen Stelle
+ * gespeichert oder geloggt. Deckt "Schiri ausgesperrt" ab, ohne die
+ * Infrastruktur für ein volles Einladungslink-Verfahren (E-Mail-Feld,
+ * Token-Tabelle) zu brauchen, siehe Danach-Backlog (D13).
+ */
+export async function resetRefereePassword(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getOwnerSession())) return NOT_OWNER;
+
+  const userId = requiredId(formData, "user_id");
+  if (userId === null) return { ok: false, error: "Ungültiger Benutzer." };
+
+  const newPassword = generateRandomPassword();
+
+  try {
+    const passwordHash = await hashPassword(newPassword);
+    const [updated] = await db
+      .update(appUser)
+      .set({ passwordHash })
+      .where(eq(appUser.userId, userId))
+      .returning({ username: appUser.username });
+    if (!updated) return { ok: false, error: "Konto existiert nicht mehr." };
+
+    revalidatePath("/admin/schiris");
+    return {
+      ok: true,
+      message: `Neues Passwort für „${updated.username}": ${newPassword}`,
+    };
+  } catch (err) {
+    console.error("resetRefereePassword", err); // niemals das Passwort loggen
+    return { ok: false, error: "Passwort konnte nicht zurückgesetzt werden." };
+  }
 }
 
 export async function setRefereePlayer(

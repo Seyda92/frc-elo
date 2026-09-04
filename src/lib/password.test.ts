@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "./password.ts";
+import { generateRandomPassword, hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "./password.ts";
 
 // Billige Parameter, damit die Suite schnell bleibt.
 const CHEAP = { N: 1024, r: 1, p: 1 };
@@ -65,4 +65,18 @@ test("N muss eine Zweierpotenz sein, sonst false", async () => {
 
 test("MIN_PASSWORD_LENGTH ist auf 6 festgelegt", () => {
   assert.equal(MIN_PASSWORD_LENGTH, 6);
+});
+
+test("generateRandomPassword liefert ein Passwort ueber MIN_PASSWORD_LENGTH", () => {
+  const pw = generateRandomPassword();
+  assert.ok(pw.length >= MIN_PASSWORD_LENGTH, `Passwort zu kurz: ${pw.length}`);
+});
+
+test("generateRandomPassword liefert bei zwei Aufrufen unterschiedliche Werte", () => {
+  assert.notEqual(generateRandomPassword(), generateRandomPassword());
+});
+
+test("generateRandomPassword enthaelt keine mehrdeutigen Zeichen (+, =, Leerzeichen)", () => {
+  const pw = generateRandomPassword();
+  assert.doesNotMatch(pw, /[+=\s]/);
 });
