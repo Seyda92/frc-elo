@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { logout } from "@/app/login/actions";
 import type { Role } from "@/lib/session";
 import type { MatchSummary } from "@/db/types";
+import type { PlannedMatchDetail } from "@/db/queries";
 import { formatDateTime } from "@/lib/format";
 
 const publicLinks = [
@@ -21,10 +22,12 @@ export function SiteHeader({
   user,
   recentMatches,
   upcomingMatches,
+  liveMatch,
 }: {
   user: User | null;
   recentMatches: MatchSummary[];
   upcomingMatches: MatchSummary[];
+  liveMatch: PlannedMatchDetail | undefined;
 }) {
   const pathname = usePathname();
   const links =
@@ -78,7 +81,11 @@ export function SiteHeader({
             );
           })}
 
-          <AktuellesDropdown recentMatches={recentMatches} upcomingMatches={upcomingMatches} />
+          <AktuellesDropdown
+            recentMatches={recentMatches}
+            upcomingMatches={upcomingMatches}
+            liveMatch={liveMatch}
+          />
 
           {user ? (
             <>
@@ -123,13 +130,16 @@ export function SiteHeader({
 function AktuellesDropdown({
   recentMatches,
   upcomingMatches,
+  liveMatch,
 }: {
   recentMatches: MatchSummary[];
   upcomingMatches: MatchSummary[];
+  liveMatch: PlannedMatchDetail | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isEmpty = recentMatches.length === 0 && upcomingMatches.length === 0;
+  const isEmpty =
+    liveMatch == null && recentMatches.length === 0 && upcomingMatches.length === 0;
 
   useEffect(() => {
     if (!open) return;
@@ -161,6 +171,20 @@ function AktuellesDropdown({
             <p className="px-4 py-4 text-sm text-foam-muted">Noch keine Spiele.</p>
           ) : (
             <>
+              {liveMatch && (
+                <Link
+                  href="/live"
+                  className="block border-b border-line bg-clay/10 px-4 py-3 transition hover:bg-clay/20"
+                >
+                  <p className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-clay">
+                    <span className="h-2 w-2 animate-[pulse-hit_1.4s_ease-out_infinite] bg-clay" />
+                    Live
+                  </p>
+                  <p className="mt-1 font-display text-foam">
+                    {liveMatch.teamAName} vs. {liveMatch.teamBName}
+                  </p>
+                </Link>
+              )}
               {upcomingMatches.length > 0 && (
                 <div className="border-b border-line px-4 py-3">
                   <p className="text-xs uppercase tracking-[0.16em] text-amber">

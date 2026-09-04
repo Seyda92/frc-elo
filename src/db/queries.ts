@@ -352,6 +352,38 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
   };
 }
 
+/** Markiert ein geplantes Match als "live gestartet" - aufgerufen beim
+ *  Aufruf der Bewerten-Seite. Idempotent (WHERE started_at IS NULL): ein
+ *  Reload oder ein zweiter Aufruf aendert den einmal gesetzten Zeitpunkt
+ *  nicht mehr. "Live" selbst ist kein gespeichertes Feld, sondern wird aus
+ *  started_at IS NOT NULL + keine match_team-Zeilen (noch nicht bewertet)
+ *  abgeleitet, siehe getLiveMatch(). */
+export async function markMatchStarted(matchId: number): Promise<void> {
+  await db
+    .update(match)
+    .set({ startedAt: sql`now()` })
+    .where(and(eq(match.matchId, matchId), sql`${match.startedAt} is null`));
+}
+
+/** Das eine aktuell laufende Match (started_at gesetzt, noch nicht
+ *  bewertet) - Annahme: nur ein Match gleichzeitig live. undefined, wenn
+ *  keins laeuft. */
+export async function getLiveMatch(): Promise<PlannedMatchDetail | undefined> {
+  const [row] = await db
+    .select({ matchId: match.matchId })
+    .from(match)
+    .where(
+      and(
+        sql`${match.startedAt} is not null`,
+        sql`EXISTS (SELECT 1 FROM ${matchPlannedRoster} WHERE ${matchPlannedRoster.matchId} = ${match.matchId})`,
+      ),
+    )
+    .orderBy(desc(match.startedAt))
+    .limit(1);
+  if (!row) return undefined;
+  return getPlannedMatchDetail(row.matchId);
+}
+
 export async function getMatchCount(): Promise<number> {
   const [row] = await db.select({ count: sql<string>`count(*)` }).from(match);
   return row ? Number(row.count) : 0;

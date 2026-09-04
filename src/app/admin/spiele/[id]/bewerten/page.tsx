@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPlannedMatchDetail } from "@/db/queries";
+import { getPlannedMatchDetail, markMatchStarted } from "@/db/queries";
 import { formatDateTime } from "@/lib/format";
 import { ScoreMatchForm } from "./ScoreMatchForm";
 
@@ -18,6 +18,7 @@ export const metadata = { title: "Match bewerten" };
 export default async function ScoreMatchPage({ params }: Props) {
   const { id } = await params;
   const matchId = parseId(id);
+  if (matchId != null) await markMatchStarted(matchId);
   const detail = matchId != null ? await getPlannedMatchDetail(matchId) : undefined;
   if (!detail) notFound();
 

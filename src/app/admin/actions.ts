@@ -598,7 +598,9 @@ export async function createPlannedMatch(
           name: input.name,
           teamAName: input.teamAName,
           teamBName: input.teamBName,
-          startedAt: input.playedAt.toISOString(),
+          // started_at wird bewusst NICHT hier gesetzt: "live" heisst "die
+          // Bewerten-Seite wurde mindestens einmal geoeffnet", nicht "wurde
+          // angelegt" - siehe markMatchStarted() in queries.ts.
         })
         .returning({ matchId: match.matchId });
       const newMatchId = insertedMatch.matchId;
