@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { getAllEvents, getClubs, getPlayersForMatchEntry } from "@/db/queries";
+import { getAllEvents, getClubs, getPlayersForMatchEntry, getRefereePlayerIds } from "@/db/queries";
 import { TeamBuilderForm } from "./TeamBuilderForm";
 
 export const metadata = { title: "Match anlegen" };
 
 export default async function CreatePlannedMatchPage() {
-  const [players, events, clubs] = await Promise.all([
+  const [players, events, clubs, refereePlayerIds] = await Promise.all([
     getPlayersForMatchEntry(),
     getAllEvents(),
     getClubs(),
+    getRefereePlayerIds(),
   ]);
 
   return (
@@ -43,7 +44,12 @@ export default async function CreatePlannedMatchPage() {
               </Link>
             </p>
           ) : (
-            <TeamBuilderForm players={players} events={events} clubs={clubs} />
+            <TeamBuilderForm
+              players={players}
+              events={events}
+              clubs={clubs}
+              refereePlayerIds={refereePlayerIds}
+            />
           )}
         </section>
       </div>

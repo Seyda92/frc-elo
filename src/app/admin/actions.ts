@@ -21,6 +21,7 @@ import {
 import {
   getEloParams,
   getPlayersForMatchEntry,
+  getRefereePlayerIds,
   getStartRating,
   type MatchEntryPlayer,
 } from "@/db/queries";
@@ -163,6 +164,7 @@ async function insertPlayer(input: {
   return {
     playerId: row.playerId,
     name: row.name,
+    alias: null,
     jerseyNumber: row.jerseyNumber,
     clubName: row.clubName ?? "—",
     rating: startRating,
@@ -263,6 +265,82 @@ export async function createPlayerForMatch(input: {
   revalidatePath("/admin/spieler");
   revalidatePath("/");
   return { ok: true, message: `Spieler „${displayName}" angelegt.`, player: created };
+}
+
+/**
+ * Bearbeitet Stammdaten eines vorhandenen Spielers. Rührt bewusst keine
+ * Spieldaten an — rating_history ist append-only, siehe Plan bis 16.09,
+ * Punkt 3.
+ */
+export async function updatePlayer(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
+  const playerId = requiredId(formData, "player_id");
+  if (playerId === null) return { ok: false, error: "Ungültiger Spieler." };
+
+  const displayName = requiredText(formData, "display_name");
+  if (!displayName) return { ok: false, error: "Name ist ein Pflichtfeld." };
+
+  const clubId = requiredId(formData, "club_id");
+  if (clubId === null) return { ok: false, error: "Bitte einen Verein auswählen." };
+
+  const jerseyNumber = optionalNonNegativeInt(formData, "jersey_number");
+  if (jerseyNumber === undefined) {
+    return { ok: false, error: "Rückennummer muss eine ganze Zahl ab 0 sein." };
+  }
+
+  const alias = optionalText(formData, "alias");
+
+  try {
+    await db
+      .update(player)
+      .set({ displayName, clubId, jerseyNumber, alias })
+      .where(eq(player.playerId, playerId));
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return {
+        ok: false,
+        error: "Diese Rückennummer ist im gewählten Verein schon vergeben.",
+      };
+    }
+    console.error("updatePlayer", err);
+    return { ok: false, error: "Spieler konnte nicht gespeichert werden." };
+  }
+
+  revalidatePath("/admin/spieler");
+  revalidatePath(`/admin/spieler/${playerId}/bearbeiten`);
+  revalidatePath(`/spieler/${playerId}`);
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { ok: true, message: `Spieler „${displayName}" gespeichert.` };
+}
+
+/** Aktiv/Inaktiv-Umschalter, analog zu setRefereeActive. */
+export async function setPlayerActive(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getAdminSession())) return NOT_AUTHENTICATED;
+
+  const playerId = requiredId(formData, "player_id");
+  if (playerId === null) return { ok: false, error: "Ungültiger Spieler." };
+
+  const isActive = requiredText(formData, "is_active") === "1" ? 1 : 0;
+
+  try {
+    await db.update(player).set({ isActive }).where(eq(player.playerId, playerId));
+  } catch (err) {
+    console.error("setPlayerActive", err);
+    return { ok: false, error: "Status konnte nicht geändert werden." };
+  }
+
+  revalidatePath("/admin/spieler");
+  revalidatePath(`/admin/spieler/${playerId}/bearbeiten`);
+  revalidatePath("/");
+  return { ok: true, message: isActive ? "Spieler aktiviert." : "Spieler deaktiviert." };
 }
 
 export async function createEvent(
@@ -495,8 +573,11 @@ export async function createPlannedMatch(
 
   const players = await getPlayersForMatchEntry();
   const knownPlayers = new Map(players.map((p) => [p.playerId, p.name]));
+  // Nicht dem Client vertrauen — wer als Schiri zählt, wird hier serverseitig
+  // neu geladen, nicht aus der (potenziell manipulierten) Formularauswahl.
+  const refereePlayerIds = new Set(await getRefereePlayerIds());
 
-  const validated = validatePlannedMatchInput(parsed, knownPlayers, new Date());
+  const validated = validatePlannedMatchInput(parsed, knownPlayers, new Date(), refereePlayerIds);
   if (!validated.ok) return { ok: false, error: validated.error };
   const input = validated.value;
 
@@ -727,12 +808,18 @@ export async function createReferee(
   }
   const role = roleRaw;
 
+  // Optional — ein Konto ohne Spielerbezug muss möglich bleiben.
+  const playerId = requiredId(formData, "player_id");
+
   try {
     const passwordHash = await hashPassword(password);
-    await db.insert(appUser).values({ username, passwordHash, role });
+    await db.insert(appUser).values({ username, passwordHash, role, playerId });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return { ok: false, error: "Diesen Benutzernamen gibt es bereits." };
+    }
+    if (isForeignKeyViolation(err)) {
+      return { ok: false, error: "Spieler existiert nicht mehr. Bitte Seite neu laden." };
     }
     console.error("createReferee", err); // niemals formData/Passwort loggen
     return { ok: false, error: "Schiri konnte nicht angelegt werden." };
@@ -740,6 +827,7 @@ export async function createReferee(
 
   revalidatePath("/admin/schiris");
   revalidatePath("/admin");
+  revalidatePath("/admin/spiele/anlegen");
   return { ok: true, message: `Schiri „${username}" angelegt.` };
 }
 
@@ -799,4 +887,34 @@ export async function setRefereeActive(
 
   revalidatePath("/admin/schiris");
   return { ok: true, message: isActive ? "Schiri aktiviert." : "Schiri deaktiviert." };
+}
+
+export async function setRefereePlayer(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await getOwnerSession())) return NOT_OWNER;
+
+  const userId = requiredId(formData, "user_id");
+  if (userId === null) return { ok: false, error: "Ungültiger Benutzer." };
+
+  // Optional — leer heißt "Verknüpfung entfernen", keine Selbst-Sperre wie
+  // bei setRefereeRole: der Owner muss sich selbst verlinken können, sonst
+  // bleibt er dauerhaft der wahrscheinlichste Schiri, der nie in der
+  // Match-Auswahl auftaucht.
+  const playerId = requiredId(formData, "player_id");
+
+  try {
+    await db.update(appUser).set({ playerId }).where(eq(appUser.userId, userId));
+  } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      return { ok: false, error: "Spieler existiert nicht mehr. Bitte Seite neu laden." };
+    }
+    console.error("setRefereePlayer", err);
+    return { ok: false, error: "Verknüpfung konnte nicht gespeichert werden." };
+  }
+
+  revalidatePath("/admin/schiris");
+  revalidatePath("/admin/spiele/anlegen");
+  return { ok: true, message: playerId ? "Spieler verknüpft." : "Verknüpfung entfernt." };
 }

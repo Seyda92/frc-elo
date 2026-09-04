@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { setRefereeActive, setRefereeRole } from "@/app/admin/actions";
+import { setRefereeActive, setRefereePlayer, setRefereeRole } from "@/app/admin/actions";
 import type { ActionResult } from "@/lib/action-result";
 import type { AppUser } from "@/db/queries";
 
@@ -11,17 +11,40 @@ const ROLE_LABELS: Record<string, string> = {
   user: "Nutzer",
 };
 
-export function RefereeList({ users, ownUserId }: { users: AppUser[]; ownUserId: number }) {
+type PlayerOption = { id: string; name: string; number: number | null };
+
+export function RefereeList({
+  users,
+  ownUserId,
+  players,
+}: {
+  users: AppUser[];
+  ownUserId: number;
+  players: PlayerOption[];
+}) {
   return (
     <ul className="divide-y divide-line">
       {users.map((user) => (
-        <RefereeRow key={user.userId} user={user} isSelf={user.userId === ownUserId} />
+        <RefereeRow
+          key={user.userId}
+          user={user}
+          isSelf={user.userId === ownUserId}
+          players={players}
+        />
       ))}
     </ul>
   );
 }
 
-function RefereeRow({ user, isSelf }: { user: AppUser; isSelf: boolean }) {
+function RefereeRow({
+  user,
+  isSelf,
+  players,
+}: {
+  user: AppUser;
+  isSelf: boolean;
+  players: PlayerOption[];
+}) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
       <div>
@@ -32,16 +55,54 @@ function RefereeRow({ user, isSelf }: { user: AppUser; isSelf: boolean }) {
         <p className="text-xs uppercase tracking-[0.14em] text-foam-muted">
           {ROLE_LABELS[user.role] ?? user.role}
           {!user.isActive && <span className="ml-2 text-clay">· deaktiviert</span>}
+          {user.playerName && <span className="ml-2 text-amber">· {user.playerName}</span>}
         </p>
       </div>
 
-      {user.role !== "owner" && !isSelf && (
-        <div className="flex flex-wrap items-center gap-2">
-          <RoleToggleForm user={user} />
-          <ActiveToggleForm user={user} />
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {user.role !== "owner" && !isSelf && (
+          <>
+            <RoleToggleForm user={user} />
+            <ActiveToggleForm user={user} />
+          </>
+        )}
+        <PlayerLinkForm user={user} players={players} />
+      </div>
     </li>
+  );
+}
+
+function PlayerLinkForm({ user, players }: { user: AppUser; players: PlayerOption[] }) {
+  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
+    setRefereePlayer,
+    null,
+  );
+
+  return (
+    <form action={formAction} className="flex items-center gap-2">
+      <input type="hidden" name="user_id" value={user.userId} />
+      <select
+        name="player_id"
+        defaultValue={user.playerId != null ? String(user.playerId) : ""}
+        className="min-h-10 border border-line bg-asphalt/60 px-2 text-xs text-foam outline-none transition focus:border-amber"
+      >
+        <option value="">– kein Spieler –</option>
+        {players.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.number != null ? `#${p.number} · ` : ""}
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        disabled={pending}
+        className="min-h-10 border border-line px-3 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber disabled:opacity-50"
+      >
+        Verknüpfen
+      </button>
+      {state && !state.ok && <span className="text-xs text-clay">{state.error}</span>}
+    </form>
   );
 }
 

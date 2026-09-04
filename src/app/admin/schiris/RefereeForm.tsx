@@ -10,7 +10,11 @@ const ROLE_OPTIONS = [
   { value: "user", label: "Nutzer" },
 ];
 
-export function RefereeForm() {
+export function RefereeForm({
+  players,
+}: {
+  players: { id: string; name: string; number: number | null }[];
+}) {
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     createReferee,
     null,
@@ -41,6 +45,14 @@ export function RefereeForm() {
           type="password"
           required
           autoComplete="new-password"
+        />
+        <SelectField
+          label="Zugehöriger Spieler"
+          name="player_id"
+          options={players.map((p) => ({
+            value: p.id,
+            label: p.number != null ? `#${p.number} · ${p.name}` : p.name,
+          }))}
         />
       </div>
       <SubmitButton pending={pending}>Schiri anlegen</SubmitButton>

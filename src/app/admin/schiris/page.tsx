@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireOwner } from "@/lib/auth";
-import { getAppUsers } from "@/db/queries";
+import { getAllPlayers, getAppUsers } from "@/db/queries";
 import { RefereeForm } from "./RefereeForm";
 import { RefereeList } from "./RefereeList";
 
@@ -8,7 +8,7 @@ export const metadata = { title: "Schiris" };
 
 export default async function AdminRefereesPage() {
   const session = await requireOwner();
-  const users = await getAppUsers();
+  const [users, players] = await Promise.all([getAppUsers(), getAllPlayers()]);
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
@@ -39,7 +39,7 @@ export default async function AdminRefereesPage() {
               Mindestens 12 Zeichen Passwort. Der Owner-Status wird hier nicht vergeben.
             </p>
           </header>
-          <RefereeForm />
+          <RefereeForm players={players} />
         </section>
 
         <section className="border border-line bg-asphalt-raised/40">
@@ -51,7 +51,7 @@ export default async function AdminRefereesPage() {
           {users.length === 0 ? (
             <p className="px-4 py-4 text-sm text-foam-muted sm:px-5">Noch kein Konto angelegt.</p>
           ) : (
-            <RefereeList users={users} ownUserId={session.userId} />
+            <RefereeList users={users} ownUserId={session.userId} players={players} />
           )}
         </section>
       </div>

@@ -72,6 +72,8 @@ export type AppUser = {
   username: string;
   role: Role;
   isActive: boolean;
+  playerId: number | null;
+  playerName: string | null;
 };
 
 /** Für /admin/schiris — alle Konten, unabhängig von Rolle/Status. */
@@ -82,8 +84,11 @@ export async function getAppUsers(): Promise<AppUser[]> {
       username: appUser.username,
       role: appUser.role,
       isActive: appUser.isActive,
+      playerId: appUser.playerId,
+      playerName: player.displayName,
     })
     .from(appUser)
+    .leftJoin(player, eq(player.playerId, appUser.playerId))
     .orderBy(asc(appUser.username));
 
   return rows.map((row) => ({
@@ -91,16 +96,19 @@ export async function getAppUsers(): Promise<AppUser[]> {
     username: row.username,
     role: row.role as Role,
     isActive: row.isActive === 1,
+    playerId: row.playerId,
+    playerName: row.playerName,
   }));
 }
 
 export async function getAllPlayers(): Promise<
-  { id: string; name: string; number: number | null; clubName: string }[]
+  { id: string; name: string; alias: string | null; number: number | null; clubName: string }[]
 > {
   const rows = await db
     .select({
       playerId: player.playerId,
       name: player.displayName,
+      alias: player.alias,
       number: player.jerseyNumber,
       clubName: club.name,
     })
@@ -111,6 +119,7 @@ export async function getAllPlayers(): Promise<
   return rows.map((row) => ({
     id: String(row.playerId),
     name: row.name,
+    alias: row.alias,
     number: row.number,
     clubName: row.clubName ?? "—",
   }));
@@ -178,6 +187,7 @@ export type MatchEntryPlayer = {
   /** number, nicht string — geht direkt in EloPlayerInput/validateMatchInput */
   playerId: number;
   name: string;
+  alias: string | null;
   jerseyNumber: number | null;
   clubName: string;
   /** Nur für die Anzeige im Formular — die Action liest die maßgeblichen
@@ -192,6 +202,7 @@ export async function getPlayersForMatchEntry(): Promise<MatchEntryPlayer[]> {
     .select({
       playerId: player.playerId,
       name: player.displayName,
+      alias: player.alias,
       jerseyNumber: player.jerseyNumber,
       clubName: club.name,
       rating: playerRatingCurrent.rating,
@@ -212,11 +223,31 @@ export async function getPlayersForMatchEntry(): Promise<MatchEntryPlayer[]> {
   return rows.map((row) => ({
     playerId: row.playerId,
     name: row.name,
+    alias: row.alias,
     jerseyNumber: row.jerseyNumber,
     clubName: row.clubName ?? "—",
     rating: row.rating != null ? Math.round(Number(row.rating)) : FALLBACK_RATING,
     gamesPlayed: row.gamesPlayed ?? 0,
   }));
+}
+
+/** player_ids aktiver Konten mit Rolle admin/owner, die mit einem Spieler
+ *  verknüpft sind — für die Schiri-Auswahl beim Match-Anlegen. selectDistinct,
+ *  weil player_id keine UNIQUE-Constraint hat (zwei Konten könnten theoretisch
+ *  denselben Spieler verlinken). */
+export async function getRefereePlayerIds(): Promise<number[]> {
+  const rows = await db
+    .selectDistinct({ playerId: appUser.playerId })
+    .from(appUser)
+    .where(
+      and(
+        sql`${appUser.playerId} is not null`,
+        eq(appUser.isActive, 1),
+        inArray(appUser.role, ["admin", "owner"]),
+      ),
+    );
+
+  return rows.map((row) => row.playerId).filter((id): id is number => id != null);
 }
 
 export type PlannedMatchDetail = {
@@ -257,6 +288,7 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
       playerId: matchPlannedRoster.playerId,
       side: matchPlannedRoster.side,
       name: player.displayName,
+      alias: player.alias,
       jerseyNumber: player.jerseyNumber,
       clubName: club.name,
       rating: playerRatingCurrent.rating,
@@ -280,6 +312,7 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
   const toEntryPlayer = (r: (typeof rosterRows)[number]): MatchEntryPlayer => ({
     playerId: r.playerId,
     name: r.name,
+    alias: r.alias,
     jerseyNumber: r.jerseyNumber,
     clubName: r.clubName ?? "—",
     rating: r.rating != null ? Math.round(Number(r.rating)) : FALLBACK_RATING,
@@ -316,6 +349,7 @@ export async function getLeaderboard(clubId: number): Promise<Player[]> {
     .select({
       playerId: player.playerId,
       name: player.displayName,
+      alias: player.alias,
       number: player.jerseyNumber,
       clubId: player.clubId,
       rating: playerRatingCurrent.rating,
@@ -350,6 +384,7 @@ export async function getLeaderboard(clubId: number): Promise<Player[]> {
     return {
       id: String(row.playerId),
       name: row.name,
+      alias: row.alias,
       number: row.number,
       clubId: row.clubId != null ? String(row.clubId) : "",
       elo: row.rating != null ? Math.round(Number(row.rating)) : FALLBACK_RATING,
@@ -596,6 +631,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
     .select({
       playerId: matchParticipation.playerId,
       name: player.displayName,
+      alias: player.alias,
       number: player.jerseyNumber,
       rating: playerRatingCurrent.rating,
       side: matchTeam.side,
@@ -627,6 +663,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
   const playerStats: MatchPlayerStat[] = statRows.map((s) => ({
     playerId: String(s.playerId),
     name: s.name,
+    alias: s.alias,
     number: s.number,
     elo: s.rating != null ? Math.round(Number(s.rating)) : FALLBACK_RATING,
     side: s.side as "A" | "B",
@@ -669,6 +706,7 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
     .select({
       playerId: player.playerId,
       name: player.displayName,
+      alias: player.alias,
       number: player.jerseyNumber,
       clubId: player.clubId,
       rating: playerRatingCurrent.rating,
@@ -702,6 +740,7 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
   return {
     id: String(row.playerId),
     name: row.name,
+    alias: row.alias,
     number: row.number,
     clubId: row.clubId != null ? String(row.clubId) : "",
     elo: row.rating != null ? Math.round(Number(row.rating)) : FALLBACK_RATING,
@@ -713,5 +752,40 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
     games: row.gamesPlayed ?? 0,
     avatarInitials: initials(row.name),
     eloHistory,
+  };
+}
+
+export type PlayerEditDetail = {
+  playerId: number;
+  displayName: string;
+  alias: string | null;
+  jerseyNumber: number | null;
+  clubId: number | null;
+  isActive: boolean;
+};
+
+/** Für /admin/spieler/[id]/bearbeiten — Stammdaten eines einzelnen Spielers. */
+export async function getPlayerById(playerId: number): Promise<PlayerEditDetail | undefined> {
+  const [row] = await db
+    .select({
+      playerId: player.playerId,
+      displayName: player.displayName,
+      alias: player.alias,
+      jerseyNumber: player.jerseyNumber,
+      clubId: player.clubId,
+      isActive: player.isActive,
+    })
+    .from(player)
+    .where(eq(player.playerId, playerId));
+
+  if (!row) return undefined;
+
+  return {
+    playerId: row.playerId,
+    displayName: row.displayName,
+    alias: row.alias,
+    jerseyNumber: row.jerseyNumber,
+    clubId: row.clubId,
+    isActive: row.isActive === 1,
   };
 }

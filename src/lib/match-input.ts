@@ -195,6 +195,7 @@ function validateReferee(
   raw: Record<string, unknown>,
   teamAIds: Set<number>,
   teamBIds: Set<number>,
+  refereePlayerIds: Set<number>,
 ): { ok: true; value: number | null } | { ok: false; error: string } {
   if (raw.refereePlayerId === null || raw.refereePlayerId === undefined || raw.refereePlayerId === "") {
     return { ok: true, value: null };
@@ -205,6 +206,9 @@ function validateReferee(
   }
   if (teamAIds.has(parsed) || teamBIds.has(parsed)) {
     return { ok: false, error: "Der Schiedsrichter kann nicht selbst mitspielen." };
+  }
+  if (!refereePlayerIds.has(parsed)) {
+    return { ok: false, error: "Dieser Spieler ist nicht als Schiri verknüpft." };
   }
   return { ok: true, value: parsed };
 }
@@ -244,6 +248,7 @@ export function validatePlannedMatchInput(
   raw: unknown,
   knownPlayers: Map<number, string>,
   now: Date,
+  refereePlayerIds: Set<number>,
 ): PlannedValidationResult {
   if (!isPlainObject(raw)) {
     return { ok: false, error: "Formulardaten sind unvollständig." };
@@ -269,7 +274,7 @@ export function validatePlannedMatchInput(
   }
   const teamBIds = new Set(teamB);
 
-  const refereeResult = validateReferee(raw, teamAIds, teamBIds);
+  const refereeResult = validateReferee(raw, teamAIds, teamBIds, refereePlayerIds);
   if (!refereeResult.ok) return refereeResult;
   const refereePlayerId = refereeResult.value;
 

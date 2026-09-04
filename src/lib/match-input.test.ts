@@ -19,6 +19,10 @@ const KNOWN = new Map<number, string>([
   [4, "Saskia Dose"],
 ]);
 
+// Alle KNOWN-Spieler gelten in diesen Tests als verlinkte Schiris, außer wo
+// gezielt eine engere/leere Menge übergeben wird.
+const ALL_REFEREES = new Set(KNOWN.keys());
+
 // --- validatePlannedMatchInput ---
 
 function plannedBasePayload(overrides: Partial<PlannedMatchFormPayload> = {}): unknown {
@@ -34,7 +38,7 @@ function plannedBasePayload(overrides: Partial<PlannedMatchFormPayload> = {}): u
 }
 
 test("geplant: gueltige minimale Nutzlast wird akzeptiert, kein winner noetig", () => {
-  const result = validatePlannedMatchInput(plannedBasePayload(), KNOWN, NOW);
+  const result = validatePlannedMatchInput(plannedBasePayload(), KNOWN, NOW, ALL_REFEREES);
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.deepEqual(result.value.teamA, [1]);
@@ -43,20 +47,20 @@ test("geplant: gueltige minimale Nutzlast wird akzeptiert, kein winner noetig", 
 });
 
 test("geplant: leeres Team A wird abgelehnt", () => {
-  const result = validatePlannedMatchInput(plannedBasePayload({ teamA: [] }), KNOWN, NOW);
+  const result = validatePlannedMatchInput(plannedBasePayload({ teamA: [] }), KNOWN, NOW, ALL_REFEREES);
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Team A/);
 });
 
 test("geplant: leeres Team B wird abgelehnt", () => {
-  const result = validatePlannedMatchInput(plannedBasePayload({ teamB: [] }), KNOWN, NOW);
+  const result = validatePlannedMatchInput(plannedBasePayload({ teamB: [] }), KNOWN, NOW, ALL_REFEREES);
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Team B/);
 });
 
 test("geplant: 21 Spieler in einem Team werden abgelehnt", () => {
   const teamA = Array.from({ length: 21 }, (_, i) => ({ playerId: String(i + 100) }));
-  const result = validatePlannedMatchInput(plannedBasePayload({ teamA }), KNOWN, NOW);
+  const result = validatePlannedMatchInput(plannedBasePayload({ teamA }), KNOWN, NOW, ALL_REFEREES);
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /höchstens 20/);
 });
@@ -66,6 +70,7 @@ test("geplant: Spieler in beiden Teams wird mit Namen abgelehnt", () => {
     plannedBasePayload({ teamA: [{ playerId: "1" }], teamB: [{ playerId: "1" }] }),
     KNOWN,
     NOW,
+    ALL_REFEREES,
   );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Torben Reifen/);
@@ -76,6 +81,7 @@ test("geplant: Spieler doppelt innerhalb eines Teams wird abgelehnt", () => {
     plannedBasePayload({ teamA: [{ playerId: "1" }, { playerId: "1" }] }),
     KNOWN,
     NOW,
+    ALL_REFEREES,
   );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /mehrfach/);
@@ -86,6 +92,7 @@ test("geplant: Schiedsrichter im eigenen Kader wird abgelehnt", () => {
     plannedBasePayload({ refereePlayerId: "1" }),
     KNOWN,
     NOW,
+    ALL_REFEREES,
   );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Schiedsrichter/);
@@ -96,9 +103,21 @@ test("geplant: gueltiger Schiedsrichter wird akzeptiert", () => {
     plannedBasePayload({ refereePlayerId: "3" }),
     KNOWN,
     NOW,
+    ALL_REFEREES,
   );
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.value.refereePlayerId, 3);
+});
+
+test("geplant: Schiedsrichter ohne Schiri-Verknuepfung wird abgelehnt", () => {
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ refereePlayerId: "3" }),
+    KNOWN,
+    NOW,
+    new Set([1, 2]), // Spieler 3 ist nicht verlinkt
+  );
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /nicht als Schiri verknüpft/);
 });
 
 test("geplant: K-Faktor ist immer fest 40, unabhaengig vom Payload", () => {
@@ -106,7 +125,7 @@ test("geplant: K-Faktor ist immer fest 40, unabhaengig vom Payload", () => {
   // mitschickt, darf es keine Wirkung haben.
   const withStrayField = plannedBasePayload() as Record<string, unknown>;
   withStrayField.kFactor = "20";
-  const result = validatePlannedMatchInput(withStrayField, KNOWN, NOW);
+  const result = validatePlannedMatchInput(withStrayField, KNOWN, NOW, ALL_REFEREES);
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.value.kFactor, 40);
 });
@@ -116,6 +135,7 @@ test("geplant: ungueltiges Datum wird abgelehnt", () => {
     plannedBasePayload({ playedAt: "kein-datum" }),
     KNOWN,
     NOW,
+    ALL_REFEREES,
   );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Zeitpunkt/);
@@ -123,7 +143,12 @@ test("geplant: ungueltiges Datum wird abgelehnt", () => {
 
 test("geplant: Zeitpunkt in der Zukunft wird akzeptiert (ein geplantes Match liegt per Definition voraus)", () => {
   const future = new Date(NOW.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const result = validatePlannedMatchInput(plannedBasePayload({ playedAt: future }), KNOWN, NOW);
+  const result = validatePlannedMatchInput(
+    plannedBasePayload({ playedAt: future }),
+    KNOWN,
+    NOW,
+    ALL_REFEREES,
+  );
   assert.equal(result.ok, true);
 });
 
@@ -132,6 +157,7 @@ test("geplant: unbekannte Spieler-ID wird abgelehnt", () => {
     plannedBasePayload({ teamA: [{ playerId: "999" }] }),
     KNOWN,
     NOW,
+    ALL_REFEREES,
   );
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /Unbekannter Spieler/);
@@ -140,7 +166,7 @@ test("geplant: unbekannte Spieler-ID wird abgelehnt", () => {
 test("geplant: kaputte Nutzlast wirft nicht, sondern liefert ok:false", () => {
   for (const bad of [null, undefined, "text", 42, [], { teamA: "x", teamB: "y" }]) {
     assert.doesNotThrow(() => {
-      const result = validatePlannedMatchInput(bad, KNOWN, NOW);
+      const result = validatePlannedMatchInput(bad, KNOWN, NOW, ALL_REFEREES);
       assert.equal(result.ok, false);
     });
   }

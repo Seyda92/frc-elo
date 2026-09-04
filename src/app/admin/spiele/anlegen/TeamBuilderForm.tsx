@@ -14,10 +14,12 @@ export function TeamBuilderForm({
   players,
   events,
   clubs,
+  refereePlayerIds,
 }: {
   players: MatchEntryPlayer[];
   events: { id: string; name: string }[];
   clubs: { id: string; name: string }[];
+  refereePlayerIds: number[];
 }) {
   // Bei Erfolg leitet createPlannedMatch serverseitig direkt zum Bewerten
   // weiter (redirect() in der Action) — kein Client-Redirect hier nötig.
@@ -41,6 +43,9 @@ export function TeamBuilderForm({
   useEffect(() => {
     setPlayedAt(localDateTimeValue(new Date()));
   }, []);
+  // Filtert nur den "Noch nicht zugeordnet"-Pool, nicht Team A/B — die
+  // Aufstellung soll beim Tippen immer vollständig sichtbar bleiben.
+  const [poolFilter, setPoolFilter] = useState("");
 
   function setSide(playerId: number, side: Side) {
     setSides((prev) => {
@@ -50,6 +55,11 @@ export function TeamBuilderForm({
     });
     if (side !== null && refereeId === String(playerId)) {
       setRefereeId("");
+    }
+    // Nach einer Zuweisung zurücksetzen, sonst zeigt der Pool weiter nur
+    // den alten, schmalen Ausschnitt, obwohl der nächste Spieler gesucht wird.
+    if (side !== null) {
+      setPoolFilter("");
     }
   }
 
@@ -66,9 +76,25 @@ export function TeamBuilderForm({
   const teamA = roster.filter((p) => sides.get(p.playerId) === "A");
   const teamB = roster.filter((p) => sides.get(p.playerId) === "B");
   const assignedIds = new Set([...teamA, ...teamB].map((p) => p.playerId));
-  const refereeOptions = roster
-    .filter((p) => !assignedIds.has(p.playerId))
-    .map((p) => ({ value: String(p.playerId), label: p.name }));
+
+  const trimmedFilter = poolFilter.trim().toLowerCase();
+  const visiblePool =
+    trimmedFilter === ""
+      ? pool
+      : pool.filter(
+          (p) =>
+            p.name.toLowerCase().includes(trimmedFilter) ||
+            String(p.jerseyNumber ?? "").startsWith(trimmedFilter),
+        );
+
+  const refereeCandidates = roster.filter((p) => !assignedIds.has(p.playerId));
+  const refereeSet = new Set(refereePlayerIds);
+  const linkedReferees = refereeCandidates.filter((p) => refereeSet.has(p.playerId));
+  const otherPlayers = refereeCandidates.filter((p) => !refereeSet.has(p.playerId));
+  // Solange niemand verlinkt ist, sieht die Liste unverändert flach aus
+  // (kein Gruppen-Label) — bewusster Rückfall, damit die Schiri-Auswahl nie
+  // leerläuft, nur weil die Verlinkung noch fehlt.
+  const hasLinkedReferees = linkedReferees.length > 0;
 
   function handleSubmit(formData: FormData) {
     const payload: PlannedMatchFormPayload = {
@@ -91,47 +117,6 @@ export function TeamBuilderForm({
   return (
     <form action={handleSubmit} className="space-y-6 p-4 sm:p-5">
       <FormStatus state={state} />
-
-      <p className="text-sm text-foam-muted">
-        Team A · {teamA.length} Spieler &nbsp;·&nbsp; Team B · {teamB.length} Spieler
-      </p>
-
-      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-        <TeamColumn title="Team A" accent="amber" side="A" roster={teamA} onSetSide={setSide} />
-        <TeamColumn title="Team B" accent="foam" side="B" roster={teamB} onSetSide={setSide} />
-      </div>
-
-      {clubs.length > 0 && <NewPlayerBlock clubs={clubs} onCreated={handlePlayerCreated} />}
-
-      <div className="border border-line">
-        <header className="border-b border-line px-4 py-3">
-          <h3 className="font-display text-lg text-foam-muted">
-            Noch nicht zugeordnet ({pool.length})
-          </h3>
-        </header>
-        <ul className="divide-y divide-line">
-          {pool.map((p) => (
-            <li key={p.playerId} className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-rubber font-display text-amber">
-                  {p.jerseyNumber ?? "–"}
-                </span>
-                <div>
-                  <p className="font-display text-lg text-foam">{p.name}</p>
-                  <p className="text-xs text-foam-muted">{p.clubName}</p>
-                </div>
-              </div>
-              <div className="flex gap-1">
-                <SideButton label="A" active={false} onClick={() => setSide(p.playerId, "A")} />
-                <SideButton label="B" active={false} onClick={() => setSide(p.playerId, "B")} />
-              </div>
-            </li>
-          ))}
-          {pool.length === 0 && (
-            <li className="px-3 py-4 text-sm text-foam-muted sm:px-4">Alle Spieler zugeordnet.</li>
-          )}
-        </ul>
-      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
@@ -164,15 +149,95 @@ export function TeamBuilderForm({
             onChange={(e) => setRefereeId(e.target.value)}
           >
             <option value="">– keiner –</option>
-            {refereeOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
+            {hasLinkedReferees ? (
+              <>
+                <optgroup label="Schiris">
+                  {linkedReferees.map((p) => (
+                    <option key={p.playerId} value={String(p.playerId)}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+                {otherPlayers.length > 0 && (
+                  <optgroup label="Alle Spieler">
+                    {otherPlayers.map((p) => (
+                      <option key={p.playerId} value={String(p.playerId)}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </>
+            ) : (
+              refereeCandidates.map((p) => (
+                <option key={p.playerId} value={String(p.playerId)}>
+                  {p.name}
+                </option>
+              ))
+            )}
           </select>
         </label>
 
         <Field label="Name" name="name" placeholder="optional, z. B. „Finale“" />
+      </div>
+
+      <p className="text-sm text-foam-muted">
+        Team A · {teamA.length} Spieler &nbsp;·&nbsp; Team B · {teamB.length} Spieler
+      </p>
+
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+        <TeamColumn title="Team A" accent="amber" side="A" roster={teamA} onSetSide={setSide} />
+        <TeamColumn title="Team B" accent="foam" side="B" roster={teamB} onSetSide={setSide} />
+      </div>
+
+      {clubs.length > 0 && <NewPlayerBlock clubs={clubs} onCreated={handlePlayerCreated} />}
+
+      <div className="border border-line">
+        <header className="border-b border-line px-4 py-3">
+          <h3 className="font-display text-lg text-foam-muted">
+            Noch nicht zugeordnet (
+            {trimmedFilter ? `${visiblePool.length} von ${pool.length}` : pool.length})
+          </h3>
+        </header>
+        <div className="border-b border-line px-3 py-2 sm:px-4">
+          <input
+            className="w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+            type="text"
+            value={poolFilter}
+            onChange={(e) => setPoolFilter(e.target.value)}
+            onKeyDown={(e) => {
+              // Ein <input> in diesem <form> würde bei Enter sonst das
+              // ganze Match absenden — hier soll Enter nur filtern.
+              if (e.key === "Enter") e.preventDefault();
+            }}
+            placeholder="Filtern: Name oder Rückennummer"
+          />
+        </div>
+        <ul className="divide-y divide-line">
+          {visiblePool.map((p) => (
+            <li key={p.playerId} className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-rubber font-display text-amber">
+                  {p.jerseyNumber ?? "–"}
+                </span>
+                <div>
+                  <p className="font-display text-lg text-foam">{p.name}</p>
+                  <p className="text-xs text-foam-muted">{p.clubName}</p>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <SideButton label="A" active={false} onClick={() => setSide(p.playerId, "A")} />
+                <SideButton label="B" active={false} onClick={() => setSide(p.playerId, "B")} />
+              </div>
+            </li>
+          ))}
+          {pool.length === 0 && (
+            <li className="px-3 py-4 text-sm text-foam-muted sm:px-4">Alle Spieler zugeordnet.</li>
+          )}
+          {pool.length > 0 && visiblePool.length === 0 && (
+            <li className="px-3 py-4 text-sm text-foam-muted sm:px-4">Kein Spieler passt zum Filter.</li>
+          )}
+        </ul>
       </div>
 
       <SubmitButton pending={pending}>Match anlegen</SubmitButton>
