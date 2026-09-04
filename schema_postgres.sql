@@ -302,3 +302,12 @@ CREATE INDEX idx_history_match        ON rating_history(match_id);
 CREATE INDEX idx_participation_player ON match_participation(player_id);
 CREATE INDEX idx_match_event          ON match(event_id);
 CREATE INDEX idx_player_club          ON player(club_id);
+
+-- ===========================================================================
+-- Migrations-Tracking (siehe migrations/0012_schema_migrations.sql)
+-- ===========================================================================
+
+CREATE TABLE schema_migrations (
+    version     TEXT        NOT NULL PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

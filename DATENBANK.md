@@ -640,3 +640,39 @@ bestehen — ohne mindestens einen wäre kein neuer Spieler anlegbar. `app_user`
 - Das Skript bricht ab, wenn keine `owner`-Zeile in `app_user` existiert, und
   verlangt vor dem eigentlichen Löschen die Eingabe von `LOESCHEN` — bei
   einem irreversiblen Vollreset reicht ein versehentliches Enter nicht.
+
+## Backup und Restore
+
+Anders als `reset-data` (der gezielte, dokumentierte Testdaten-Reset oben)
+gibt es dafür kein Skript, das über diesen Repo-Checkout per SSH-Tunnel
+läuft — `scripts/backup-db.sh` und `scripts/restore-db.sh` laufen direkt
+auf dem VPS gegen den Postgres-Container, weil die Produktions-DB in einem
+eigenen, separaten Compose-Projekt liegt (siehe `UEBERGABE.md`), das dieses
+Repo nicht verwaltet.
+
+- **`npm run backup-db`-Äquivalent gibt es nicht** — auf dem VPS direkt
+  `./scripts/backup-db.sh` ausführen. Zieht per `pg_dump --clean --if-exists`
+  einen komprimierten, zeitgestempelten Plain-SQL-Dump nach
+  `~/frc-elo-backups/` (überschreibbar via `BACKUP_DIR`). Plain-SQL statt
+  `pg_dump -Fc`, bewusst: lässt sich mit jedem `psql` wieder einspielen, ganz
+  ohne passende `pg_restore`-Version, und ist im Zweifel von Hand lesbar.
+- **Vor jedem Rollout, ausnahmslos**: Backup ziehen, die entstandene Datei
+  per `scp` vom Server herunterkopieren (ein Backup, das nur auf demselben
+  Server liegt, ist bei Plattenschaden keins), und den Restore **testen** —
+  lokal in eine leere Test-DB einspielen, nicht nur "sieht plausibel groß
+  aus". Ein ungetesteter Dump ist eine Vermutung, kein Backup.
+- **`scripts/restore-db.sh <dump.sql.gz>`** spielt einen Dump ein. Da der
+  Dump `--clean --if-exists` enthält, überschreibt das den kompletten
+  aktuellen Inhalt der Ziel-DB — deshalb wie `reset-data` hinter der
+  `LOESCHEN`-Bestätigung. Container/User/DB-Name sind über die Umgebungs-
+  variablen `DB_CONTAINER`/`DB_USER`/`DB_NAME` steuerbar, damit sich
+  derselbe Weg auch für einen lokalen Restore-Test gegen den
+  `docker-compose.local.yml`-Container nutzen lässt.
+- **Migrations-Tracking**: Seit `migrations/0012_schema_migrations.sql` gibt
+  es die Tabelle `schema_migrations` (Version + Zeitstempel). Jede neue
+  Migration ab 0012 endet mit ihrem eigenen `INSERT INTO schema_migrations`
+  — damit lässt sich künftig direkt in der DB nachsehen, welche Migrationen
+  bereits eingespielt sind, statt es aus dem Schema selbst zu erraten.
+  Hinweis für alle, die auf die Nummerierung schauen: **`0005` hat nie
+  existiert**, keine verlorene Datei, die Lücke ist beabsichtigt offen
+  geblieben.

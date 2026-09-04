@@ -1,0 +1,5 @@
+# Shell-Skripte laufen auf dem VPS (Linux) - immer LF im Checkout, egal
+# welches core.autocrlf der jeweilige Entwickler-Client hat. Ohne das wuerde
+# ein Windows-Checkout mit autocrlf=true CRLF einchecken/auschecken und das
+# Shebang auf einem Linux-Server kaputt machen ("bad interpreter").
+*.sh text eol=lf
