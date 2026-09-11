@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Archivo_Black, Source_Sans_3 } from "next/font/google";
 import { SiteHeader } from "@/components/SiteHeader";
+import { LiveStrip } from "@/components/LiveStrip";
+import { BottomTabBar } from "@/components/BottomTabBar";
 import { getSession } from "@/lib/auth";
-import { getLiveMatch, getPlannedMatches, getRecentMatches } from "@/db/queries";
+import { getLiveMatch } from "@/db/queries";
 import "./globals.css";
 
 const display = Archivo_Black({
@@ -35,23 +37,15 @@ export default async function RootLayout({
   // Hinweis: cookies() im Root-Layout macht ALLE Routen dynamisch (auch das
   // öffentliche Leaderboard) — der Full Route Cache ist damit app-weit aus.
   // Unkritisch hier, da diese Seiten ohnehin pro Aufruf die DB befragen.
-  const [session, recentMatches, upcomingMatches, liveMatch] = await Promise.all([
-    getSession(),
-    getRecentMatches(2),
-    getPlannedMatches(1),
-    getLiveMatch(),
-  ]);
+  const [session, liveMatch] = await Promise.all([getSession(), getLiveMatch()]);
 
   return (
     <html lang="de" className={`${display.variable} ${body.variable}`}>
       <body className="bg-asphalt antialiased">
-        <SiteHeader
-          user={session ? { username: session.username, role: session.role } : null}
-          recentMatches={recentMatches}
-          upcomingMatches={upcomingMatches}
-          liveMatch={liveMatch}
-        />
-        <main>{children}</main>
+        <SiteHeader user={session ? { username: session.username, role: session.role } : null} />
+        <LiveStrip liveMatch={liveMatch} />
+        <main className="pb-[60px] lg:pb-0">{children}</main>
+        <BottomTabBar />
       </body>
     </html>
   );

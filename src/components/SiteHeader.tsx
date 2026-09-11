@@ -3,12 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { logout } from "@/app/login/actions";
+import { AccountMenu } from "@/components/AccountMenu";
 import type { Role } from "@/lib/session";
-import type { MatchSummary } from "@/db/types";
-import type { PlannedMatchDetail } from "@/db/queries";
-import { formatDateTime } from "@/lib/format";
 
 const publicLinks = [
   { href: "/", label: "Leaderboard" },
@@ -18,17 +14,7 @@ const publicLinks = [
 
 type User = { username: string; role: Role };
 
-export function SiteHeader({
-  user,
-  recentMatches,
-  upcomingMatches,
-  liveMatch,
-}: {
-  user: User | null;
-  recentMatches: MatchSummary[];
-  upcomingMatches: MatchSummary[];
-  liveMatch: PlannedMatchDetail | undefined;
-}) {
+export function SiteHeader({ user }: { user: User | null }) {
   const pathname = usePathname();
   const links =
     user?.role === "admin" || user?.role === "owner"
@@ -41,7 +27,7 @@ export function SiteHeader({
         <div className="surface-leuchtturm pointer-events-none absolute inset-0" aria-hidden="true" />
         <div className="stripe-leuchtturm h-1.5 w-full" aria-hidden="true" />
       </div>
-      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div className="relative flex items-center justify-between gap-[10px] px-[14px] py-[10px] sm:mx-auto sm:max-w-7xl sm:px-6 sm:py-3">
         <Link href="/" className="group flex items-center gap-2 transition group-hover:opacity-90">
           <Image
             src="/logo.png"
@@ -56,7 +42,7 @@ export function SiteHeader({
           </span>
         </Link>
 
-        <nav className="flex items-center gap-2">
+        <nav className="hidden items-center gap-2 lg:flex">
           {links.map((link) => {
             const active =
               link.href === "/"
@@ -80,33 +66,19 @@ export function SiteHeader({
               </Link>
             );
           })}
+        </nav>
 
-          <AktuellesDropdown
-            recentMatches={recentMatches}
-            upcomingMatches={upcomingMatches}
-            liveMatch={liveMatch}
-          />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/mehr"
+            aria-label="Suche"
+            className="flex h-[38px] w-[38px] items-center justify-center border border-line text-foam-muted transition hover:border-amber hover:text-amber"
+          >
+            ⌕
+          </Link>
 
           {user ? (
-            <>
-              <span className="hidden px-2 text-xs uppercase tracking-[0.14em] text-foam-muted sm:inline">
-                {user.username}
-              </span>
-              <Link
-                href="/passwort-aendern"
-                className="min-h-10 border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber sm:px-4"
-              >
-                Passwort
-              </Link>
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="min-h-10 border border-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber sm:px-4"
-                >
-                  Logout
-                </button>
-              </form>
-            </>
+            <AccountMenu user={user} />
           ) : (
             <Link
               href="/login"
@@ -115,117 +87,8 @@ export function SiteHeader({
               Login
             </Link>
           )}
-        </nav>
+        </div>
       </div>
     </header>
-  );
-}
-
-/** Auf jeder Seite abrufbare Kurzübersicht — die Startseite zeigt "Letzte
- *  Spiele"/"Nächstes Match" bereits als eigene Sektionen, aber nur dort.
- *  Kein Portal/Library nötig: absolut positioniertes Panel. Schließt sich
- *  über einen mousedown-Listener auf document statt onBlur — onBlur würde
- *  das Panel schon vor dem click-Event auf einem Link darin schließen und
- *  damit die Navigation verhindern (Blur feuert vor Click). */
-function AktuellesDropdown({
-  recentMatches,
-  upcomingMatches,
-  liveMatch,
-}: {
-  recentMatches: MatchSummary[];
-  upcomingMatches: MatchSummary[];
-  liveMatch: PlannedMatchDetail | undefined;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isEmpty =
-    liveMatch == null && recentMatches.length === 0 && upcomingMatches.length === 0;
-
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={`min-h-10 px-3 py-2 text-xs uppercase tracking-[0.14em] transition sm:px-4 ${
-          open
-            ? "bg-amber text-asphalt"
-            : "border border-line text-foam-muted hover:border-amber hover:text-amber"
-        }`}
-      >
-        Aktuelles
-      </button>
-
-      {open ? (
-        <div className="absolute right-0 top-full z-50 mt-2 w-72 border border-amber bg-asphalt-raised shadow-lg">
-          {isEmpty ? (
-            <p className="px-4 py-4 text-sm text-foam-muted">Noch keine Spiele.</p>
-          ) : (
-            <>
-              {liveMatch && (
-                <Link
-                  href="/live"
-                  className="block border-b border-line bg-clay/10 px-4 py-3 transition hover:bg-clay/20"
-                >
-                  <p className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-clay">
-                    <span className="h-2 w-2 animate-[pulse-hit_1.4s_ease-out_infinite] bg-clay" />
-                    Live
-                  </p>
-                  <p className="mt-1 font-display text-foam">
-                    {liveMatch.teamAName} vs. {liveMatch.teamBName}
-                  </p>
-                </Link>
-              )}
-              {upcomingMatches.length > 0 && (
-                <div className="border-b border-line px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-amber">
-                    Nächstes Match
-                  </p>
-                  {upcomingMatches.map((m) => (
-                    <Link
-                      key={m.id}
-                      href={`/spiel/${m.id}`}
-                      className="mt-1 block transition hover:text-amber"
-                    >
-                      <p className="text-xs text-foam-muted">{formatDateTime(m.playedAt)}</p>
-                      <p className="font-display text-foam hover:text-amber">
-                        {m.teamA.map((p) => p.name.split(" ")[0]).join(", ")} vs.{" "}
-                        {m.teamB.map((p) => p.name.split(" ")[0]).join(", ")}
-                      </p>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {recentMatches.length > 0 && (
-                <div className="px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-foam-muted">
-                    Letzte Spiele
-                  </p>
-                  <ul className="mt-1 space-y-2">
-                    {recentMatches.map((m) => (
-                      <li key={m.id}>
-                        <Link href={`/spiel/${m.id}`} className="block transition hover:text-amber">
-                          <p className="text-xs text-foam-muted">{formatDateTime(m.playedAt)}</p>
-                          <p className="font-display text-foam hover:text-amber">{m.scoreLabel}</p>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ) : null}
-    </div>
   );
 }
