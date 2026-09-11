@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BackBar } from "@/components/BackBar";
 import { getMatchDetail } from "@/db/queries";
 import { formatDateTime } from "@/lib/format";
-import type { MatchDetail, MatchPlayerStat } from "@/db/types";
+import { backLinkParam, resolveBackLink } from "@/lib/back-link";
+import type { MatchDetail } from "@/db/types";
 
 type Props = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 };
 
 function parseId(id: string): number | undefined {
@@ -22,68 +25,56 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 
-export default async function MatchPage({ params }: Props) {
+export default async function MatchPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { from } = await searchParams;
   const numericId = parseId(id);
   const match = numericId != null ? await getMatchDetail(numericId) : undefined;
   if (!match) notFound();
 
   const isPlayed = match.status === "played";
+  const back = resolveBackLink(from, { label: "Spiele", href: "/spiele" });
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
-      <div className="border-b border-line bg-asphalt-raised/80">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-amber">
-              {isPlayed ? "Spielbericht" : "Geplantes Match"}
-              {match.eventName ? ` · ${match.eventName}` : ""}
-            </p>
-            <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
-              {match.name ?? match.scoreLabel}
-            </h1>
-            {match.name && (
-              <p className="mt-1 font-display text-lg text-foam-muted">{match.scoreLabel}</p>
-            )}
-            <p className="mt-1 text-sm text-foam-muted">
-              {formatDateTime(match.playedAt)}
-              {match.eventLocation ? ` · ${match.eventLocation}` : ""}
-            </p>
-            {match.note && (
-              <p className="mt-2 text-sm text-foam-muted">{match.note}</p>
-            )}
-          </div>
-          <Link
-            href="/"
-            className="border border-line px-4 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
-          >
-            Zurück
-          </Link>
-        </div>
+      <BackBar label={back.label} href={back.href} />
+
+      <div className="border-b border-line bg-asphalt-raised/80 px-[14px] py-4">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-signal-yellow">
+          {match.name ?? `Spiel #${match.id}`} · {isPlayed ? "beendet" : "geplant"}
+          {match.eventName ? ` · ${match.eventName}` : ""}
+        </p>
+        <h1 className="mt-[6px] font-display text-[21px] text-foam">
+          {match.teamAName} vs. {match.teamBName}
+        </h1>
+        <p className="mt-[5px] text-xs text-foam-muted">
+          {formatDateTime(match.playedAt)}
+          {match.eventLocation ? ` · ${match.eventLocation}` : ""}
+        </p>
+        {match.note && <p className="mt-2 text-sm text-foam-muted">{match.note}</p>}
       </div>
 
       <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
         {isPlayed && match.winner ? (
-          <div className="mb-6 flex flex-wrap items-center justify-center gap-4">
+          <div className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <ScoreColumn
+              label={match.teamAName}
+              score={match.playerStats.filter((s) => s.side === "A").reduce((sum, s) => sum + s.hits, 0)}
+              isWinner={match.winner === "A"}
+            />
             <span
-              className={`min-h-14 min-w-[10rem] px-5 py-3 text-center font-display text-lg uppercase tracking-wide ${
-                match.winner === "A"
-                  ? "bg-amber text-asphalt"
-                  : "border border-line text-foam-muted"
-              }`}
-            >
-              {match.teamAName} {match.winner === "A" ? "gewinnt" : ""}
-            </span>
-            <span className="font-display text-2xl text-amber">VS</span>
-            <span
-              className={`min-h-14 min-w-[10rem] px-5 py-3 text-center font-display text-lg uppercase tracking-wide ${
-                match.winner === "B"
-                  ? "bg-amber text-asphalt"
-                  : "border border-line text-foam-muted"
-              }`}
-            >
-              {match.teamBName} {match.winner === "B" ? "gewinnt" : ""}
-            </span>
+              className="h-[60px] w-[5px] shrink-0"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(-35deg, var(--color-clay) 0px, var(--color-clay) 10px, var(--color-signal-yellow) 10px, var(--color-signal-yellow) 20px)",
+              }}
+              aria-hidden="true"
+            />
+            <ScoreColumn
+              label={match.teamBName}
+              score={match.playerStats.filter((s) => s.side === "B").reduce((sum, s) => sum + s.hits, 0)}
+              isWinner={match.winner === "B"}
+            />
           </div>
         ) : (
           <p className="mb-6 text-center text-sm text-foam-muted">
@@ -112,6 +103,31 @@ export default async function MatchPage({ params }: Props) {
   );
 }
 
+function ScoreColumn({
+  label,
+  score,
+  isWinner,
+}: {
+  label: string;
+  score: number;
+  isWinner: boolean;
+}) {
+  return (
+    <div className="text-center">
+      <p className={`font-display text-[40px] leading-none ${isWinner ? "text-amber" : "text-foam"}`}>
+        {score}
+      </p>
+      <p
+        className={`mt-[6px] text-[10px] uppercase tracking-[0.14em] ${
+          isWinner ? "text-amber" : "text-foam-muted"
+        }`}
+      >
+        {isWinner ? "Sieger" : label}
+      </p>
+    </div>
+  );
+}
+
 function TeamPanel({
   title,
   accent,
@@ -129,9 +145,7 @@ function TeamPanel({
 
   return (
     <section
-      className={`border ${
-        isWinner ? "border-amber bg-amber/5" : "border-line bg-asphalt-raised/40"
-      }`}
+      className={isWinner ? "border border-amber bg-amber/5" : "border border-line bg-asphalt-raised/40"}
     >
       <header className="flex items-center justify-between border-b border-line px-4 py-4 sm:px-5">
         <h2
@@ -142,39 +156,35 @@ function TeamPanel({
           {title}
         </h2>
         {isWinner && (
-          <span className="text-xs uppercase tracking-[0.16em] text-amber">
-            Sieger
-          </span>
+          <span className="text-xs uppercase tracking-[0.16em] text-amber">Sieger</span>
         )}
       </header>
 
       <ul className="divide-y divide-line">
         {roster.map((stats) => (
-          <li key={stats.playerId} className="px-3 py-4 sm:px-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <Link
-                href={`/spieler/${stats.playerId}`}
-                className="flex items-center gap-3 transition hover:opacity-90"
-              >
-                <span className="flex h-12 w-12 items-center justify-center bg-rubber font-display text-amber">
-                  {stats.number ?? "–"}
+          <li key={stats.playerId} className="flex items-center gap-[10px] px-3 py-[11px] sm:px-5">
+            <Link
+              href={`/spieler/${stats.playerId}${backLinkParam(`spiel:${match.id}`)}`}
+              className="flex min-w-0 flex-1 items-center gap-[10px] transition hover:opacity-90"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-rubber font-display text-[13px] text-amber">
+                {stats.number ?? "–"}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-display text-[13px] text-foam">
+                  {stats.name}
+                  {stats.alias ? (
+                    <span className="ml-1 text-xs font-normal text-foam-muted">
+                      ({stats.alias})
+                    </span>
+                  ) : null}
                 </span>
-                <div>
-                  <p className="font-display text-xl text-foam hover:text-amber sm:text-2xl">
-                    {stats.name}
-                    {stats.alias ? (
-                      <span className="ml-2 text-sm font-normal text-foam-muted">
-                        ({stats.alias})
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-sm text-foam-muted">ELO {stats.elo}</p>
-                </div>
-              </Link>
-              <EloDelta delta={stats.eloDelta} />
-            </div>
-
-            <StatGrid stats={stats} />
+                <span className="block text-[11px] text-foam-muted">
+                  {stats.hits}/{stats.throws} · {stats.bonusBeers} BB · {title}
+                </span>
+              </span>
+            </Link>
+            <EloDelta delta={stats.eloDelta} />
           </li>
         ))}
       </ul>
@@ -185,48 +195,9 @@ function TeamPanel({
 function EloDelta({ delta }: { delta: number }) {
   const positive = delta >= 0;
   return (
-    <span
-      className={`font-display text-2xl ${
-        positive ? "text-moss" : "text-clay"
-      }`}
-    >
+    <span className={`shrink-0 text-[11px] font-semibold ${positive ? "text-moss" : "text-clay"}`}>
       {positive ? "+" : ""}
       {delta}
     </span>
-  );
-}
-
-function StatGrid({ stats }: { stats: MatchPlayerStat }) {
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      <StatCell label="Würfe" value={stats.throws} />
-      <StatCell label="Treffer" value={stats.hits} highlight />
-      <StatCell label="Bonusbiere" value={stats.bonusBeers} />
-    </div>
-  );
-}
-
-function StatCell({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: number;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="border border-line bg-asphalt/60 p-2">
-      <p className="text-center text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
-        {label}
-      </p>
-      <p
-        className={`mt-1 text-center font-display text-2xl ${
-          highlight ? "text-signal-yellow" : "text-foam"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
   );
 }

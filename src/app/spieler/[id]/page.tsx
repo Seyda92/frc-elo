@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BackBar } from "@/components/BackBar";
 import { EloSparkline } from "@/components/EloSparkline";
 import { getPlayerDetail, getPlayerRecentMatches, getPrimaryClub } from "@/db/queries";
 import { ehrensteinePerAntritt, formatDateTime, hitRate } from "@/lib/format";
+import { resolveBackLink } from "@/lib/back-link";
 
 type Props = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 };
 
 function parseId(id: string): number | undefined {
@@ -22,8 +25,9 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 
-export default async function PlayerPage({ params }: Props) {
+export default async function PlayerPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { from } = await searchParams;
   const numericId = parseId(id);
   if (numericId == null) notFound();
 
@@ -39,45 +43,32 @@ export default async function PlayerPage({ params }: Props) {
     player.eloHistory.length >= 2
       ? player.elo - player.eloHistory[0].elo
       : 0;
+  const back = resolveBackLink(from, { label: "Rangliste", href: "/" });
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
-      <div className="border-b border-line bg-asphalt-raised/80">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
-          <div className="flex items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center bg-rubber font-display text-2xl text-amber">
-              {player.number ?? "–"}
-            </span>
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-amber">
-                Spielerprofil{club ? ` · ${club.name.split(" ").slice(0, 2).join(" ")}` : ""}
-              </p>
-              <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
-                {player.name}
-                {player.alias ? (
-                  <span className="ml-2 text-lg font-normal text-foam-muted">
-                    ({player.alias})
-                  </span>
-                ) : null}
-              </h1>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-[0.14em] text-foam-muted">
-                ELO
-              </p>
-              <p className="font-display text-3xl text-foam sm:text-4xl">
-                {player.elo}
-              </p>
-            </div>
-            <Link
-              href="/"
-              className="border border-line px-4 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
-            >
-              Zurück
-            </Link>
-          </div>
+      <BackBar label={back.label} href={back.href} />
+
+      <div className="flex items-center gap-3 border-b border-line bg-asphalt-raised/80 px-[14px] py-4">
+        <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center bg-rubber font-display text-xl text-amber">
+          {player.number ?? "–"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-amber">
+            Spielerprofil{club ? ` · ${club.name.split(" ").slice(0, 2).join(" ")}` : ""}
+          </p>
+          <h1 className="truncate font-display text-[21px] text-foam">
+            {player.name}
+            {player.alias ? (
+              <span className="ml-2 text-base font-normal text-foam-muted">
+                ({player.alias})
+              </span>
+            ) : null}
+          </h1>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[9.5px] uppercase tracking-[0.12em] text-foam-muted">ELO</p>
+          <p className="font-display text-[26px] text-foam">{player.elo}</p>
         </div>
       </div>
 
@@ -149,25 +140,22 @@ export default async function PlayerPage({ params }: Props) {
               return (
                 <li key={match.id}>
                   <Link
-                    href={`/spiel/${match.id}`}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 transition hover:bg-rubber/30 sm:px-5"
+                    href={`/spiel/${match.id}?from=${encodeURIComponent(`spieler:${player.id}`)}`}
+                    className="flex min-h-14 items-center justify-between gap-3 px-4 py-[10px] transition hover:bg-rubber/30 sm:px-5"
                   >
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-foam-muted">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[11px] uppercase tracking-[0.12em] text-foam-muted">
                         {formatDateTime(match.playedAt)}
-                      </p>
-                      <p className="mt-1 font-display text-xl text-foam">
+                      </span>
+                      <span className="mt-1 block font-display text-sm text-foam">
                         {onA ? match.teamAName : match.teamBName} ·{" "}
                         {(onA ? match.teamA : match.teamB)
                           .map((p) => p.name.split(" ")[0])
                           .join(", ")}
-                      </p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-amber">
-                        Spiel ansehen →
-                      </p>
-                    </div>
+                      </span>
+                    </span>
                     <span
-                      className={`min-h-12 px-4 py-2 font-display text-lg uppercase tracking-wide ${
+                      className={`shrink-0 px-[9px] py-[5px] font-display text-[10.5px] uppercase tracking-[0.08em] ${
                         won
                           ? "bg-amber text-asphalt"
                           : "border border-line text-clay"

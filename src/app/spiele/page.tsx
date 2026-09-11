@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAllMatches } from "@/db/queries";
 import { formatDateTime } from "@/lib/format";
+import { backLinkParam } from "@/lib/back-link";
 
 export const metadata = { title: "Spiele" };
 
@@ -54,7 +55,7 @@ export default async function MatchesPage({ searchParams }: Props) {
               {matches.map((m) => (
                 <li key={m.id}>
                   <Link
-                    href={`/spiel/${m.id}`}
+                    href={`/spiel/${m.id}${backLinkParam("spiele")}`}
                     className="block px-4 py-4 transition hover:bg-rubber/30 sm:px-5"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">

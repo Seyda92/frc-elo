@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPlannedMatches, getRecentMatches } from "@/db/queries";
 import { formatDateTime } from "@/lib/format";
+import { backLinkParam } from "@/lib/back-link";
 
 export const metadata = { title: "Spiele" };
 
@@ -100,7 +101,7 @@ export default async function AdminMatchesPage() {
               {matches.map((m) => (
                 <li key={m.id}>
                   <Link
-                    href={`/spiel/${m.id}`}
+                    href={`/spiel/${m.id}${backLinkParam("admin-spiele")}`}
                     className="block px-4 py-4 transition hover:bg-rubber/30 sm:px-5"
                   >
                     <p className="text-xs uppercase tracking-[0.16em] text-foam-muted">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { hitRate } from "@/lib/format";
+import { backLinkParam } from "@/lib/back-link";
 import type { Player } from "@/db/types";
 
 function DeltaLabel({ value }: { value: number | null }) {
@@ -34,7 +35,7 @@ export function LeaderboardRow({
     <li className="animate-[rank-in_0.55s_cubic-bezier(0.22,1,0.36,1)_both] border-b-[3px] border-transparent [border-image:repeating-linear-gradient(-35deg,var(--color-clay)_0px,var(--color-clay)_8px,var(--color-signal-yellow)_8px,var(--color-signal-yellow)_16px)_1]">
       <div className="flex items-stretch">
         <Link
-          href={`/spieler/${player.id}`}
+          href={`/spieler/${player.id}${backLinkParam("board")}`}
           className="flex min-h-[64px] min-w-0 flex-1 items-center gap-[11px] py-[10px] pl-3 pr-1 sm:pl-5"
         >
           <span className="flex w-[42px] shrink-0 flex-col items-center gap-[3px]">

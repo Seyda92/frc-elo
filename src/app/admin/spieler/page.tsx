@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAdminSession } from "@/lib/auth";
 import { getAllPlayers, getAppUsers, getClubs } from "@/db/queries";
+import { backLinkParam } from "@/lib/back-link";
 import { PlayerForm } from "./PlayerForm";
 import { RefereeQuickForm } from "./RefereeQuickForm";
 
@@ -71,7 +72,7 @@ export default async function AdminPlayersPage() {
                   className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5"
                 >
                   <Link
-                    href={`/spieler/${player.id}`}
+                    href={`/spieler/${player.id}${backLinkParam("admin-spieler")}`}
                     className="group flex items-center gap-3 transition hover:opacity-90"
                   >
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center bg-rubber font-display text-amber">
