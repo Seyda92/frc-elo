@@ -41,6 +41,28 @@ export function RefereeList({
   );
 }
 
+function RoleBadge({ user }: { user: AppUser }) {
+  if (!user.isActive) {
+    return (
+      <span className="shrink-0 px-2 py-1 text-[9.5px] uppercase tracking-[0.12em] text-foam-muted">
+        Inaktiv
+      </span>
+    );
+  }
+  if (user.role === "owner") {
+    return (
+      <span className="shrink-0 border border-clay bg-clay/[0.14] px-2 py-1 text-[9.5px] uppercase tracking-[0.12em] text-clay">
+        Owner
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 border border-line px-2 py-1 text-[9.5px] uppercase tracking-[0.12em] text-signal-yellow">
+      Schiri
+    </span>
+  );
+}
+
 function RefereeRow({
   user,
   isSelf,
@@ -51,17 +73,19 @@ function RefereeRow({
   players: PlayerOption[];
 }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
-      <div>
-        <p className="font-display text-lg text-foam">
-          {user.username}
-          {isSelf && <span className="ml-2 text-xs text-foam-muted">(du)</span>}
-        </p>
-        <p className="text-xs uppercase tracking-[0.14em] text-foam-muted">
-          {ROLE_LABELS[user.role] ?? user.role}
-          {!user.isActive && <span className="ml-2 text-clay">· deaktiviert</span>}
-          {user.playerName && <span className="ml-2 text-amber">· {user.playerName}</span>}
-        </p>
+    <li className="flex flex-wrap items-center justify-between gap-3 px-[14px] py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0">
+          <p className="truncate font-display text-[13.5px] text-foam">
+            {user.username}
+            {isSelf && <span className="ml-2 text-xs text-foam-muted">(du)</span>}
+          </p>
+          <p className="mt-[2px] text-[11px] text-foam-muted">
+            {ROLE_LABELS[user.role] ?? user.role}
+            {user.playerName && <span className="text-amber"> · {user.playerName}</span>}
+          </p>
+        </div>
+        <RoleBadge user={user} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

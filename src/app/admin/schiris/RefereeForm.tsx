@@ -21,41 +21,44 @@ export function RefereeForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 p-4 sm:p-5">
+    <form action={formAction} className="mt-3 flex flex-col gap-[11px]">
       <FormStatus state={state} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Benutzername"
-          name="username"
-          required
-          placeholder="schiri1"
-          autoComplete="off"
-        />
-        <SelectField label="Rolle" name="role" required options={ROLE_OPTIONS} />
-        <Field
-          label="Passwort"
-          name="password"
-          type="password"
-          required
-          autoComplete="new-password"
-        />
-        <Field
-          label="Passwort (Wiederholung)"
-          name="password_confirm"
-          type="password"
-          required
-          autoComplete="new-password"
-        />
-        <SelectField
-          label="Zugehöriger Spieler"
-          name="player_id"
-          options={players.map((p) => ({
-            value: p.id,
-            label: p.number != null ? `#${p.number} · ${p.name}` : p.name,
-          }))}
-        />
-      </div>
-      <SubmitButton pending={pending}>Schiri anlegen</SubmitButton>
+      <Field
+        label="Benutzername"
+        name="username"
+        required
+        placeholder="schiri1"
+        autoComplete="off"
+        hint="Wird beim ersten Login geändert."
+      />
+      <SelectField label="Rolle" name="role" required options={ROLE_OPTIONS} />
+      <Field
+        label="Passwort"
+        name="password"
+        type="password"
+        required
+        autoComplete="new-password"
+      />
+      <Field
+        label="Passwort (Wiederholung)"
+        name="password_confirm"
+        type="password"
+        required
+        autoComplete="new-password"
+      />
+      <SelectField
+        label="Zugehöriger Spieler"
+        name="player_id"
+        options={players.map((p) => ({
+          value: p.id,
+          label: p.number != null ? `#${p.number} · ${p.name}` : p.name,
+        }))}
+      />
+      <SubmitButton pending={pending}>Zugang erstellen</SubmitButton>
+      <p className="text-[11.5px] text-foam-muted">
+        Der neue Zugang erscheint sofort in der Liste — mit Hinweis, dass das Passwort noch
+        geändert werden muss.
+      </p>
     </form>
   );
 }

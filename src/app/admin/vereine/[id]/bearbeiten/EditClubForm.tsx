@@ -13,13 +13,11 @@ export function EditClubForm({ club }: { club: ClubEditDetail }) {
   );
 
   return (
-    <form action={formAction} className="space-y-4 p-4 sm:p-5">
+    <form action={formAction} className="flex flex-col gap-[11px]">
       <FormStatus state={state} />
       <input type="hidden" name="club_id" value={club.clubId} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" name="name" required defaultValue={club.name} />
-        <Field label="Ort" name="city" defaultValue={club.city ?? ""} />
-      </div>
+      <Field label="Name" name="name" required defaultValue={club.name} />
+      <Field label="Ort" name="city" defaultValue={club.city ?? ""} />
       <SubmitButton pending={pending}>Speichern</SubmitButton>
     </form>
   );

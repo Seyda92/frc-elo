@@ -19,27 +19,25 @@ export function EditEventForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 p-4 sm:p-5">
+    <form action={formAction} className="flex flex-col gap-[11px]">
       <FormStatus state={state} />
       <input type="hidden" name="event_id" value={event.eventId} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" name="name" required defaultValue={event.name} />
-        <SelectField
-          label="Verein"
-          name="club_id"
-          required
-          defaultValue={event.clubId != null ? String(event.clubId) : ""}
-          options={clubs.map((club) => ({ value: club.id, label: club.name }))}
-        />
-        <Field label="Beginn" name="starts_on" type="date" defaultValue={event.startsOn ?? ""} />
-        <Field label="Ende" name="ends_on" type="date" defaultValue={event.endsOn ?? ""} />
-        <Field
-          label="Ort"
-          name="location"
-          placeholder="optional, Standard: Vereinsort"
-          defaultValue={event.location ?? ""}
-        />
-      </div>
+      <Field label="Name" name="name" required defaultValue={event.name} />
+      <SelectField
+        label="Verein"
+        name="club_id"
+        required
+        defaultValue={event.clubId != null ? String(event.clubId) : ""}
+        options={clubs.map((club) => ({ value: club.id, label: club.name }))}
+      />
+      <Field label="Beginn" name="starts_on" type="date" defaultValue={event.startsOn ?? ""} />
+      <Field label="Ende" name="ends_on" type="date" defaultValue={event.endsOn ?? ""} />
+      <Field
+        label="Ort"
+        name="location"
+        placeholder="optional, Standard: Vereinsort"
+        defaultValue={event.location ?? ""}
+      />
       <SubmitButton pending={pending}>Speichern</SubmitButton>
     </form>
   );

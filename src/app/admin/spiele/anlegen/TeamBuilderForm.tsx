@@ -124,12 +124,12 @@ export function TeamBuilderForm({
   }
 
   return (
-    <form action={handleSubmit} className="space-y-6 p-4 sm:p-5">
+    <form action={handleSubmit} className="flex flex-col gap-6">
       <FormStatus state={state} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-[11px] sm:grid-cols-2">
         <label className="block">
-          <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+          <span className="block text-[9.5px] uppercase tracking-[0.12em] text-foam-muted">
             Zeitpunkt *
           </span>
           <input
@@ -149,7 +149,7 @@ export function TeamBuilderForm({
         />
 
         <label className="block">
-          <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+          <span className="block text-[9.5px] uppercase tracking-[0.12em] text-foam-muted">
             Schiedsrichter
           </span>
           <select
@@ -190,9 +190,9 @@ export function TeamBuilderForm({
         <Field label="Name" name="name" placeholder="optional, z. B. „Finale“" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-[11px] sm:grid-cols-2">
         <label className="block">
-          <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+          <span className="block text-[9.5px] uppercase tracking-[0.12em] text-foam-muted">
             Name Team A
           </span>
           <input
@@ -204,7 +204,7 @@ export function TeamBuilderForm({
           />
         </label>
         <label className="block">
-          <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+          <span className="block text-[9.5px] uppercase tracking-[0.12em] text-foam-muted">
             Name Team B
           </span>
           <input
@@ -217,16 +217,16 @@ export function TeamBuilderForm({
         </label>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+      <div className="grid grid-cols-2 gap-[8px]">
         <TeamColumn
-          title={`${teamAName.trim() || "Team A"} · ${teamA.length} Spieler`}
+          label={teamAName.trim() || "Team A"}
           accent="amber"
           side="A"
           roster={teamA}
           onSetSide={setSide}
         />
         <TeamColumn
-          title={`${teamBName.trim() || "Team B"} · ${teamB.length} Spieler`}
+          label={teamBName.trim() || "Team B"}
           accent="foam"
           side="B"
           roster={teamB}
@@ -237,15 +237,15 @@ export function TeamBuilderForm({
       {clubs.length > 0 && <NewPlayerBlock clubs={clubs} onCreated={handlePlayerCreated} />}
 
       <div className="border border-line">
-        <header className="border-b border-line px-4 py-3">
-          <h3 className="font-display text-lg text-foam-muted">
+        <header className="border-b border-line px-3 py-[10px]">
+          <h3 className="font-display text-sm text-foam-muted">
             Noch nicht zugeordnet (
             {trimmedFilter ? `${visiblePool.length} von ${pool.length}` : pool.length})
           </h3>
         </header>
-        <div className="border-b border-line px-3 py-2 sm:px-4">
+        <div className="border-b border-line px-3 py-2">
           <input
-            className="w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber"
+            className="w-full min-h-10 border border-line bg-asphalt/60 px-[10px] text-[12.5px] text-foam-faint outline-none transition focus:border-amber focus:text-foam"
             type="text"
             value={poolFilter}
             onChange={(e) => setPoolFilter(e.target.value)}
@@ -254,32 +254,30 @@ export function TeamBuilderForm({
               // ganze Match absenden — hier soll Enter nur filtern.
               if (e.key === "Enter") e.preventDefault();
             }}
-            placeholder="Filtern: Name oder Rückennummer"
+            placeholder="Pool filtern…"
           />
         </div>
         <ul className="divide-y divide-line">
           {visiblePool.map((p) => (
-            <li key={p.playerId} className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-rubber font-display text-amber">
-                  {p.jerseyNumber ?? "–"}
-                </span>
-                <div>
-                  <p className="font-display text-lg text-foam">{p.name}</p>
-                  <p className="text-xs text-foam-muted">{p.clubName}</p>
-                </div>
+            <li key={p.playerId} className="flex items-center gap-2 px-3 py-[9px]">
+              <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center bg-rubber font-display text-[11px] text-amber">
+                {p.jerseyNumber ?? "–"}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-[12.5px] text-foam">{p.name}</p>
+                <p className="text-[10.5px] text-foam-muted">ELO {p.rating}</p>
               </div>
-              <div className="flex gap-1">
-                <SideButton label="A" active={false} onClick={() => setSide(p.playerId, "A")} />
-                <SideButton label="B" active={false} onClick={() => setSide(p.playerId, "B")} />
+              <div className="flex shrink-0 gap-[5px]">
+                <SideButton label="A" accent onClick={() => setSide(p.playerId, "A")} />
+                <SideButton label="B" onClick={() => setSide(p.playerId, "B")} />
               </div>
             </li>
           ))}
           {pool.length === 0 && (
-            <li className="px-3 py-4 text-sm text-foam-muted sm:px-4">Alle Spieler zugeordnet.</li>
+            <li className="px-3 py-4 text-sm text-foam-muted">Alle Spieler zugeordnet.</li>
           )}
           {pool.length > 0 && visiblePool.length === 0 && (
-            <li className="px-3 py-4 text-sm text-foam-muted sm:px-4">Kein Spieler passt zum Filter.</li>
+            <li className="px-3 py-4 text-sm text-foam-muted">Kein Spieler passt zum Filter.</li>
           )}
         </ul>
       </div>
@@ -347,9 +345,9 @@ function NewPlayerBlock({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="min-h-10 border border-line px-3 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+        className="text-left text-[11.5px] text-amber transition hover:text-amber-hot"
       >
-        + Spieler anlegen
+        + Spieler anlegen (inline, ohne Seitenwechsel)
       </button>
     );
   }
@@ -427,77 +425,74 @@ function NewPlayerBlock({
   );
 }
 
+/** Kompaktes Panel gemäß Handoff: min. 96px hoch, nur Overline + Namen —
+ *  Details (Verein, Rückennummer) bleiben dem Pool vorbehalten. Team A
+ *  trägt den accent-Rahmen, Team B den neutralen border-line-Rahmen. */
 function TeamColumn({
-  title,
+  label,
   accent,
   side,
   roster,
   onSetSide,
 }: {
-  title: string;
+  label: string;
   accent: "amber" | "foam";
   side: Side;
   roster: MatchEntryPlayer[];
   onSetSide: (playerId: number, side: Side) => void;
 }) {
   return (
-    <section className="border border-line bg-asphalt-raised/40">
-      <header className="border-b border-line px-4 py-4 sm:px-5">
-        <h2
-          className={`font-display text-3xl tracking-tight ${
-            accent === "amber" ? "text-amber" : "text-foam"
-          }`}
-        >
-          {title}
-        </h2>
-      </header>
-      <ul className="divide-y divide-line">
-        {roster.map((p) => (
-          <li key={p.playerId} className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-rubber font-display text-amber">
-                {p.jerseyNumber ?? "–"}
-              </span>
-              <div>
-                <p className="font-display text-lg text-foam">{p.name}</p>
-                <p className="text-xs text-foam-muted">{p.clubName}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onSetSide(p.playerId, null)}
-              className="min-h-10 px-3 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber border border-line"
-            >
-              Entfernen
-            </button>
-          </li>
-        ))}
-        {roster.length === 0 && (
-          <li className="px-3 py-4 text-sm text-foam-muted sm:px-4">
-            Noch keine Spieler in Team {side}.
-          </li>
-        )}
-      </ul>
-    </section>
+    <div
+      className={`min-h-[96px] p-2 ${
+        accent === "amber" ? "border border-amber" : "border border-line"
+      } bg-asphalt/60`}
+    >
+      <p
+        className={`text-[9px] uppercase tracking-[0.14em] ${
+          accent === "amber" ? "text-amber" : "text-foam"
+        }`}
+      >
+        {label} · {roster.length} Spieler
+      </p>
+      {roster.length === 0 ? (
+        <p className="mt-[6px] text-[11px] text-foam-faint">— frei —</p>
+      ) : (
+        <ul className="mt-1 flex flex-col gap-[4px]">
+          {roster.map((p) => (
+            <li key={p.playerId} className="flex items-center justify-between gap-2">
+              <span className="truncate font-display text-[12.5px] text-foam">{p.name}</span>
+              <button
+                type="button"
+                onClick={() => onSetSide(p.playerId, null)}
+                aria-label={`${p.name} aus Team ${side} entfernen`}
+                className="shrink-0 text-xs text-foam-muted transition hover:text-clay"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
 function SideButton({
   label,
-  active,
+  accent,
   onClick,
 }: {
   label: string;
-  active: boolean;
+  accent?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`min-h-10 min-w-10 px-3 text-xs uppercase tracking-[0.14em] transition ${
-        active
-          ? "bg-amber text-asphalt"
+      className={`flex h-[38px] w-[38px] items-center justify-center font-display text-xs transition ${
+        accent
+          ? "border border-amber text-amber hover:bg-amber hover:text-asphalt"
           : "border border-line text-foam-muted hover:border-amber hover:text-amber"
       }`}
     >

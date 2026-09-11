@@ -8,6 +8,7 @@ import type { ActionResult } from "@/lib/action-result";
 
 const inputClasses =
   "w-full min-h-11 border border-line bg-asphalt/60 px-3 py-2 text-foam outline-none transition focus:border-amber";
+const labelClasses = "block text-[9.5px] uppercase tracking-[0.12em] text-foam-muted";
 
 export function Field({
   label,
@@ -19,6 +20,7 @@ export function Field({
   max,
   defaultValue,
   autoComplete,
+  hint,
 }: {
   label: string;
   name: string;
@@ -29,10 +31,11 @@ export function Field({
   max?: number | string;
   defaultValue?: string;
   autoComplete?: string;
+  hint?: string;
 }) {
   return (
     <label className="block">
-      <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+      <span className={labelClasses}>
         {label}
         {required ? " *" : ""}
       </span>
@@ -47,6 +50,7 @@ export function Field({
         defaultValue={defaultValue}
         autoComplete={autoComplete}
       />
+      {hint ? <span className="mt-1 block text-[11px] text-foam-muted">{hint}</span> : null}
     </label>
   );
 }
@@ -66,7 +70,7 @@ export function SelectField({
 }) {
   return (
     <label className="block">
-      <span className="block text-[0.65rem] uppercase tracking-[0.14em] text-foam-muted">
+      <span className={labelClasses}>
         {label}
         {required ? " *" : ""}
       </span>

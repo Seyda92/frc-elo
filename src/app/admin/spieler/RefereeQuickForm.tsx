@@ -37,7 +37,7 @@ export function RefereeQuickForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="min-h-10 border border-line px-3 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
+        className="text-[11px] uppercase tracking-[0.1em] text-foam-muted transition hover:text-amber"
       >
         Zu Schiri machen
       </button>

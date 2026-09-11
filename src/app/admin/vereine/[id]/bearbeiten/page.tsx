@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminPageHeader } from "@/components/AdminPageHeader";
 import { getClubById } from "@/db/queries";
 import { EditClubForm } from "./EditClubForm";
 
@@ -22,27 +22,13 @@ export default async function EditClubPage({ params }: Props) {
 
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-asphalt">
-      <div className="border-b border-line bg-asphalt-raised/80">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-amber">Admin</p>
-            <h1 className="font-display text-3xl tracking-tight text-foam sm:text-4xl">
-              Verein bearbeiten
-            </h1>
-          </div>
-          <Link
-            href="/admin/vereine"
-            className="border border-line px-4 py-2 text-xs uppercase tracking-[0.14em] text-foam-muted transition hover:border-amber hover:text-amber"
-          >
-            Zurück
-          </Link>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8">
-        <section className="border border-line bg-asphalt-raised/40">
-          <EditClubForm club={clubDetail} />
-        </section>
+      <AdminPageHeader
+        eyebrow="Schiri-Bereich"
+        title="Verein bearbeiten"
+        backHref="/admin/vereine"
+      />
+      <div className="px-[14px] py-4">
+        <EditClubForm club={clubDetail} />
       </div>
     </div>
   );

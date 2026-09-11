@@ -12,12 +12,10 @@ export function ClubForm() {
   );
 
   return (
-    <form action={formAction} className="space-y-4 p-4 sm:p-5">
+    <form action={formAction} className="mt-3 flex flex-col gap-[11px]">
       <FormStatus state={state} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" name="name" required placeholder="1. FRC Musterstadt" />
-        <Field label="Ort" name="city" placeholder="Musterstadt" />
-      </div>
+      <Field label="Name" name="name" required placeholder="1. FRC Musterstadt" />
+      <Field label="Ort" name="city" placeholder="Musterstadt" />
       <SubmitButton pending={pending}>Verein anlegen</SubmitButton>
     </form>
   );
