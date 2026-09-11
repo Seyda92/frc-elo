@@ -859,18 +859,16 @@ export async function scoreMatch(
     return { ok: false, error: "Match konnte nicht gespeichert werden." };
   }
 
+  // Kein revalidatePath für die Bewerten-Route selbst und kein redirect()
+  // mehr: das Formular bleibt nach dem Speichern stehen (Erfolgs-Block mit
+  // Folgeaktionen, siehe ScoreMatchForm), der Nutzer entscheidet selbst,
+  // wann er zum Spielbericht wechselt. Andere Routen, die den neuen Stand
+  // zeigen, werden weiterhin revalidiert.
   revalidatePath("/admin/spiele");
   revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath(`/spiel/${matchId}`);
-  // Serverseitiger Redirect statt eines ok:true-Returns: die Bewerten-Seite
-  // selbst wird durch das Bewerten ungültig (match_planned_roster ist jetzt
-  // leer, notFound() würde greifen) — ein clientseitiger router.push() nach
-  // dem Return verliert das Rennen gegen Next.js' automatische Revalidierung
-  // der aktuellen Route und zeigt kurz einen 404, bevor der Redirect greift.
-  // redirect() wirft eine Next-interne Exception und muss daher außerhalb
-  // des try/catch oben passieren.
-  redirect(`/spiel/${matchId}`);
+  return { ok: true, message: "Ergebnis gespeichert · ELO aktualisiert", matchId };
 }
 
 /**

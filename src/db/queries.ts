@@ -368,6 +368,101 @@ export async function getPlannedMatchDetail(matchId: number): Promise<PlannedMat
   };
 }
 
+export type MatchScoringContext = {
+  matchId: number;
+  eventName: string | null;
+  playedAt: string;
+  refereeName: string | null;
+  teamAName: string;
+  teamBName: string;
+  /** Leer, wenn das Match bereits bewertet wurde (match_planned_roster
+   *  ist dann geleert) — im Unterschied zu getPlannedMatchDetail liefert
+   *  diese Funktion trotzdem die Match-Metadaten statt undefined. Siehe
+   *  Kommentar in der Bewerten-Seite: das Formular braucht über einen
+   *  Next.js-Refresh nach dem Speichern hinweg stabile Props, sonst geht
+   *  sein lokaler State (Erfolgs-Block) verloren. */
+  teamA: MatchEntryPlayer[];
+  teamB: MatchEntryPlayer[];
+};
+
+/** Wie getPlannedMatchDetail, aber undefined nur wenn das Match selbst
+ *  nicht existiert — nicht, wenn es bereits bewertet wurde. Nur für die
+ *  Bewerten-Seite gedacht (siehe MatchScoringContext-Kommentar). */
+export async function getMatchScoringContext(
+  matchId: number,
+): Promise<MatchScoringContext | undefined> {
+  const [row] = await db
+    .select({
+      matchId: match.matchId,
+      eventName: event.name,
+      playedAt: match.playedAt,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    })
+    .from(match)
+    .leftJoin(event, eq(event.eventId, match.eventId))
+    .where(eq(match.matchId, matchId));
+
+  if (!row) return undefined;
+
+  const rosterRows = await db
+    .select({
+      playerId: matchPlannedRoster.playerId,
+      side: matchPlannedRoster.side,
+      throws: matchPlannedRoster.throws,
+      hits: matchPlannedRoster.hits,
+      bonusBeer: matchPlannedRoster.bonusBeer,
+      name: player.displayName,
+      alias: player.alias,
+      jerseyNumber: player.jerseyNumber,
+      clubName: club.name,
+      rating: playerRatingCurrent.rating,
+      gamesPlayed: playerRatingCurrent.gamesPlayed,
+    })
+    .from(matchPlannedRoster)
+    .innerJoin(player, eq(player.playerId, matchPlannedRoster.playerId))
+    .leftJoin(club, eq(club.clubId, player.clubId))
+    .leftJoin(
+      playerRatingCurrent,
+      and(
+        eq(playerRatingCurrent.playerId, matchPlannedRoster.playerId),
+        eq(playerRatingCurrent.modelId, V3_MODEL_ID),
+      ),
+    )
+    .where(eq(matchPlannedRoster.matchId, matchId))
+    .orderBy(asc(player.displayName));
+
+  const toEntryPlayer = (r: (typeof rosterRows)[number]): MatchEntryPlayer => ({
+    playerId: r.playerId,
+    name: r.name,
+    alias: r.alias,
+    jerseyNumber: r.jerseyNumber,
+    clubName: r.clubName ?? "—",
+    rating: r.rating != null ? Math.round(Number(r.rating)) : FALLBACK_RATING,
+    gamesPlayed: r.gamesPlayed ?? 0,
+    liveThrows: r.throws,
+    liveHits: r.hits,
+    liveBonusBeer: r.bonusBeer,
+  });
+
+  const [refereeRow] = await db
+    .select({ name: player.displayName })
+    .from(matchReferee)
+    .innerJoin(player, eq(player.playerId, matchReferee.playerId))
+    .where(eq(matchReferee.matchId, matchId));
+
+  return {
+    matchId: row.matchId,
+    eventName: row.eventName,
+    playedAt: new Date(row.playedAt).toISOString(),
+    refereeName: refereeRow?.name ?? null,
+    teamAName: row.teamAName ?? "Team A",
+    teamBName: row.teamBName ?? "Team B",
+    teamA: rosterRows.filter((r) => r.side === "A").map(toEntryPlayer),
+    teamB: rosterRows.filter((r) => r.side === "B").map(toEntryPlayer),
+  };
+}
+
 /** Markiert ein geplantes Match als "live gestartet" - aufgerufen beim
  *  Aufruf der Bewerten-Seite. Idempotent (WHERE started_at IS NULL): ein
  *  Reload oder ein zweiter Aufruf aendert den einmal gesetzten Zeitpunkt

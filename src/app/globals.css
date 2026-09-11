@@ -18,6 +18,7 @@
   --color-live-strip: #241614;
   --color-nav: #0d1212;
   --color-header: #131919;
+  --color-success-bg: #141c19;
 
   --font-display: var(--font-archivo), "Arial Black", sans-serif;
   --font-body: var(--font-source), "Segoe UI", sans-serif;
