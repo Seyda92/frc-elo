@@ -455,9 +455,34 @@ export async function getLeaderboard(
 
   const rpsByPlayer = new Map(rpsRows.map((r) => [r.playerId, r]));
 
-  const players: Player[] = base.map((row) => {
+  // Letzter rating_history-Eintrag je Spieler (DISTINCT ON, sortiert nach
+  // played_at) liefert ratingBefore/delta des jeweils letzten Spiels — die
+  // Basis für Rangdelta und Elo-Delta in der Leaderboard-Zeile. Getrennt
+  // von playerRatingCurrent, das nur den aktuellen Stand kennt, nicht den
+  // Stand davor.
+  const lastMatchRows = await db.execute<{
+    player_id: number;
+    rating_before: string;
+    delta: string;
+  }>(sql`
+    select distinct on (rh.player_id) rh.player_id, rh.rating_before, rh.delta
+    from ${ratingHistory} rh
+    inner join ${match} m on m.match_id = rh.match_id
+    where rh.model_id = ${V3_MODEL_ID}
+    order by rh.player_id, m.played_at desc, rh.history_id desc
+  `);
+  const lastMatchByPlayer = new Map(
+    lastMatchRows.rows.map((r) => [r.player_id, r]),
+  );
+
+  type PlayerWithPreviousRating = Omit<Player, "rankDelta"> & {
+    _ratingBeforeLastMatch: number | null;
+  };
+
+  const players: PlayerWithPreviousRating[] = base.map((row) => {
     const stats = statsByPlayer.get(row.playerId);
     const rps = rpsByPlayer.get(row.playerId);
+    const lastMatch = lastMatchByPlayer.get(row.playerId);
     return {
       id: String(row.playerId),
       name: row.name,
@@ -475,10 +500,35 @@ export async function getLeaderboard(
       eloHistory: [],
       ehrensteine: Number(rps?.ehrensteine ?? 0),
       antritte: Number(rps?.antritte ?? 0),
+      lastEloDelta: lastMatch ? Math.round(Number(lastMatch.delta)) : null,
+      _ratingBeforeLastMatch: lastMatch ? Number(lastMatch.rating_before) : null,
     };
   });
 
-  return sortLeaderboard(players, sortBy, direction);
+  // Rang "vor dem letzten Spiel" je Spieler: Spieler ohne Vergleichsbasis
+  // (kein Spiel) fallen ans Ende, behalten aber ihre relative Reihenfolge
+  // per aktuellem Elo bei, damit die übrigen Ränge stabil bleiben.
+  const previousOrder = [...players].sort((a, b) => {
+    const aRating = a._ratingBeforeLastMatch ?? a.elo;
+    const bRating = b._ratingBeforeLastMatch ?? b.elo;
+    return bRating - aRating;
+  });
+  const previousRankByPlayer = new Map(previousOrder.map((p, i) => [p.id, i + 1]));
+
+  const currentEloOrder = [...players].sort((a, b) => b.elo - a.elo);
+  const currentRankByPlayer = new Map(currentEloOrder.map((p, i) => [p.id, i + 1]));
+
+  const withRankDelta: Player[] = players.map(({ _ratingBeforeLastMatch, ...p }) => {
+    const hasHistory = _ratingBeforeLastMatch != null;
+    const currentRank = currentRankByPlayer.get(p.id)!;
+    const previousRank = previousRankByPlayer.get(p.id)!;
+    return {
+      ...p,
+      rankDelta: hasHistory ? previousRank - currentRank : null,
+    };
+  });
+
+  return sortLeaderboard(withRankDelta, sortBy, direction);
 }
 
 type MatchRow = {
@@ -898,6 +948,10 @@ export async function getPlayerDetail(playerId: number): Promise<Player | undefi
     eloHistory,
     ehrensteine: Number(rpsRow?.ehrensteine ?? 0),
     antritte: Number(rpsRow?.antritte ?? 0),
+    // Rang-/Elo-Delta sind nur im Ranglisten-Kontext sinnvoll (siehe
+    // getLeaderboard) — hier gibt es keine Vergleichsbasis.
+    rankDelta: null,
+    lastEloDelta: null,
   };
 }
 

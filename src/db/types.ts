@@ -29,6 +29,12 @@ export type Player = {
   /** Schnick-Schnack-Schnuck-Auslosung (D22), siehe match_rps_draw. */
   ehrensteine: number;
   antritte: number;
+  /** Rangveränderung in der Elo-Tabelle gegenüber dem Stand vor dem
+   *  jeweils letzten Spiel des Spielers. null ohne Vergleichsbasis
+   *  (kein Spiel gespielt). Positiv = aufgestiegen. */
+  rankDelta: number | null;
+  /** Elo-Änderung durch das letzte Spiel des Spielers. null ohne Spiel. */
+  lastEloDelta: number | null;
 };
 
 export type EventSummary = {

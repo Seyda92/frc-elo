@@ -99,9 +99,14 @@ export default async function HomePage({ searchParams }: Props) {
             })}
           </div>
 
-          <ul className="divide-y divide-line rank-stagger">
+          <ul className="rank-stagger">
             {ranked.map((player, index) => (
-              <LeaderboardRow key={player.id} player={player} rank={index + 1} />
+              <LeaderboardRow
+                key={player.id}
+                player={player}
+                rank={index + 1}
+                showRankDelta={sortBy === "elo"}
+              />
             ))}
           </ul>
         </section>
