@@ -80,8 +80,9 @@ export type MatchDetail = MatchSummary & {
   playerStats: MatchPlayerStat[];
 };
 
-/** MatchSummary + note, nur für getAllMatches()/die /spiele-Übersicht —
- *  bewusst nicht Teil von MatchSummary selbst, sonst müsste note auch in
- *  getRecentMatches/getUpcomingMatches/getPlannedMatches/
- *  getPlayerRecentMatches mitgeführt werden, wo sie nicht gebraucht wird. */
+/** MatchSummary + note, nur für getMatchesGroupedByEvent()/die
+ *  /spiele-Übersicht — bewusst nicht Teil von MatchSummary selbst, sonst
+ *  müsste note auch in getRecentMatches/getUpcomingMatches/
+ *  getPlannedMatches/getPlayerRecentMatches mitgeführt werden, wo sie
+ *  nicht gebraucht wird. */
 export type MatchListItem = MatchSummary & { note: string | null };

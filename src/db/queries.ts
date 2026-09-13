@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "./client.ts";
 import {
   appUser,
@@ -818,13 +818,57 @@ export async function getPlannedMatches(limit?: number): Promise<MatchSummary[]>
   return buildMatchSummaries(rows);
 }
 
-/** Alle Matches (geplant + bewertet) chronologisch absteigend, paginiert -
- *  für die öffentliche Übersicht unter /spiele. */
-export async function getAllMatches(
-  offset: number,
-  limit: number,
-): Promise<{ matches: MatchListItem[]; total: number }> {
-  const [{ count }] = await db.select({ count: sql<string>`count(*)` }).from(match);
+export type MatchEventGroup = {
+  /** null = Sammelgruppe "Ohne Event" für Matches ohne eventId. */
+  eventId: string | null;
+  eventName: string;
+  /** Zeitpunkt des jüngsten Matches der Gruppe — für die Datumszeile im
+   *  Gruppenkopf und zum Sortieren der Gruppen selbst. */
+  latestPlayedAt: string;
+  matches: MatchListItem[];
+};
+
+/**
+ * Matches gruppiert nach Event für die öffentliche Übersicht unter
+ * /spiele — ersetzt die vormals flache, nach Match paginierte Liste.
+ * Paginiert wird über EVENTS (chronologisch nach ihrem jüngsten Match
+ * absteigend), nicht über einzelne Matches, damit "Ältere Events laden"
+ * nie eine Gruppe mittendurch abschneidet. Die Sammelgruppe "Ohne Event"
+ * zählt dabei wie ein eigenes Event und wird nach ihrem jüngsten Match
+ * einsortiert, taucht also nicht zwingend nur am Ende auf.
+ */
+export async function getMatchesGroupedByEvent(
+  groupOffset: number,
+  groupLimit: number,
+): Promise<{ groups: MatchEventGroup[]; totalGroups: number }> {
+  const latestPerGroup = sql<string>`max(coalesce(${match.endedAt}, ${match.playedAt}))`;
+
+  const allGroups = await db
+    .select({ eventId: match.eventId, latest: latestPerGroup })
+    .from(match)
+    .groupBy(match.eventId)
+    .orderBy(desc(latestPerGroup));
+
+  const page = allGroups.slice(groupOffset, groupOffset + groupLimit);
+  if (page.length === 0) return { groups: [], totalGroups: allGroups.length };
+
+  const eventIds = page.map((g) => g.eventId).filter((id): id is number => id != null);
+  const eventNames = eventIds.length
+    ? await db
+        .select({ eventId: event.eventId, name: event.name })
+        .from(event)
+        .where(inArray(event.eventId, eventIds))
+    : [];
+  const eventNameById = new Map(eventNames.map((e) => [e.eventId, e.name]));
+
+  const pageHasNullGroup = page.some((g) => g.eventId == null);
+  const whereClause =
+    eventIds.length > 0 && pageHasNullGroup
+      ? or(inArray(match.eventId, eventIds), isNull(match.eventId))
+      : eventIds.length > 0
+        ? inArray(match.eventId, eventIds)
+        : isNull(match.eventId);
+
   const rows = await db
     .select({
       matchId: match.matchId,
@@ -836,21 +880,35 @@ export async function getAllMatches(
       note: match.note,
     })
     .from(match)
-    // Nach Abschluss sortieren, nicht nach Anlagedatum: ein spaeter
-    // bewertetes Match soll oben stehen, auch wenn played_at frueher liegt.
-    // Ohne ended_at (noch geplant) faellt COALESCE auf played_at zurueck.
-    .orderBy(desc(sql`coalesce(${match.endedAt}, ${match.playedAt})`))
-    .limit(limit)
-    .offset(offset);
+    .where(whereClause)
+    .orderBy(desc(sql`coalesce(${match.endedAt}, ${match.playedAt})`));
 
   const noteByMatchId = new Map(rows.map((r) => [String(r.matchId), r.note]));
   const summaries = await buildMatchSummaries(rows);
-  const matches: MatchListItem[] = summaries.map((s) => ({
+  const items: MatchListItem[] = summaries.map((s) => ({
     ...s,
     note: noteByMatchId.get(s.id) ?? null,
   }));
 
-  return { matches, total: Number(count) };
+  const itemsByGroupKey = new Map<string, MatchListItem[]>();
+  for (const item of items) {
+    const key = item.eventId ?? "";
+    const list = itemsByGroupKey.get(key) ?? [];
+    list.push(item);
+    itemsByGroupKey.set(key, list);
+  }
+
+  const groups: MatchEventGroup[] = page.map((g) => {
+    const key = g.eventId != null ? String(g.eventId) : "";
+    return {
+      eventId: g.eventId != null ? String(g.eventId) : null,
+      eventName: g.eventId != null ? (eventNameById.get(g.eventId) ?? "Unbenanntes Event") : "Ohne Event",
+      latestPlayedAt: new Date(g.latest).toISOString(),
+      matches: itemsByGroupKey.get(key) ?? [],
+    };
+  });
+
+  return { groups, totalGroups: allGroups.length };
 }
 
 export async function getPlayerRecentMatches(
