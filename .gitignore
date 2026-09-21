@@ -42,3 +42,7 @@ next-env.d.ts
 # leftover scaffold
 /web/
 .tmp-home/
+
+# lokaler DB-Dump-Import (siehe docker-compose.dump.yml)
+/.localdb/
+docker-compose.dump.yml
