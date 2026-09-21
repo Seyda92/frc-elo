@@ -3,18 +3,11 @@ import { getLeaderboard, getPrimaryClub } from "@/db/queries";
 import {
   LEADERBOARD_SORT_KEYS,
   SORT_DIRECTIONS,
+  SORT_LABELS,
   type LeaderboardSortKey,
   type SortDirection,
 } from "@/lib/format";
 import { LeaderboardRow } from "@/components/LeaderboardRow";
-
-const SORT_LABELS: Record<LeaderboardSortKey, string> = {
-  elo: "Elo",
-  quote: "Quote",
-  games: "Spiele",
-  bonusBeers: "Bonusbiere",
-  wins: "Siege",
-};
 
 function parseSortBy(raw: string | undefined): LeaderboardSortKey {
   return (LEADERBOARD_SORT_KEYS as readonly string[]).includes(raw ?? "")
@@ -105,7 +98,7 @@ export default async function HomePage({ searchParams }: Props) {
                 key={player.id}
                 player={player}
                 rank={index + 1}
-                showRankDelta={sortBy === "elo"}
+                sortBy={sortBy}
               />
             ))}
           </ul>

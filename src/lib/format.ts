@@ -26,6 +26,20 @@ export type LeaderboardSortKey = (typeof LEADERBOARD_SORT_KEYS)[number];
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;
 export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 
+/** Anzeige-Label je Sortierkriterium — für die Sortier-Buttons (page.tsx,
+ *  Server Component) und die Kennzahl-Zeile (LeaderboardRow, Client
+ *  Component). Bewusst hier statt in LeaderboardRow.tsx exportiert: ein
+ *  Wert-Export aus einer "use client"-Datei kommt in einer Server
+ *  Component zur Laufzeit als undefined an (getrennte Bundles), format.ts
+ *  hat kein "use client" und ist für beide Seiten sicher. */
+export const SORT_LABELS: Record<LeaderboardSortKey, string> = {
+  elo: "ELO",
+  quote: "Quote",
+  games: "Spiele",
+  bonusBeers: "Bonusbiere",
+  wins: "Siege",
+};
+
 type SortablePlayer = {
   elo: number;
   throws: number;
@@ -47,6 +61,29 @@ function leaderboardSortValue(player: SortablePlayer, sortBy: LeaderboardSortKey
       return player.bonusBeers;
     case "wins":
       return player.wins;
+  }
+}
+
+/** Wert + Einheit für die groß dargestellte Kennzahl in der Leaderboard-Zeile
+ *  — muss zur jeweils aktiven Sortierung passen (D: bislang stand dort immer
+ *  Elo, unabhängig von sortBy). Dieselbe Herleitung wie
+ *  leaderboardSortValue(), aber mit Anzeige-Suffix statt reinem Zahlenwert
+ *  fürs Sortieren. */
+export function leaderboardDisplayValue(
+  player: SortablePlayer,
+  sortBy: LeaderboardSortKey,
+): { value: number | string; suffix: string } {
+  switch (sortBy) {
+    case "elo":
+      return { value: player.elo, suffix: "" };
+    case "quote":
+      return { value: hitRate(player), suffix: "%" };
+    case "games":
+      return { value: player.games, suffix: "" };
+    case "bonusBeers":
+      return { value: player.bonusBeers, suffix: "" };
+    case "wins":
+      return { value: player.wins, suffix: "" };
   }
 }
 

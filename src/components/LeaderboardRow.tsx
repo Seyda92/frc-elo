@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { hitRate } from "@/lib/format";
+import {
+  hitRate,
+  leaderboardDisplayValue,
+  SORT_LABELS,
+  type LeaderboardSortKey,
+} from "@/lib/format";
 import { backLinkParam } from "@/lib/back-link";
 import type { Player } from "@/db/types";
 
@@ -16,20 +21,24 @@ function DeltaLabel({ value }: { value: number | null }) {
 /** Hauptfläche tippt direkt zum Profil, der Chevron rechts klappt die
  *  Stat-Kacheln separat auf — zwei getrennte Trefferflächen in einer
  *  Zeile, wie im Redesign vorgesehen (Zeile → Profil, Chevron → Details).
- *  rankDelta bezieht sich immer auf die Elo-Rangliste — bei anderer
- *  Sortierung passt die angezeigte Rangzahl nicht mehr dazu, deshalb
- *  blendet showRankDelta es dann aus statt ein irreführendes Delta zu
- *  einer anderen Rangzahl zu zeigen. */
+ *  rankDelta und lastEloDelta beziehen sich immer auf die Elo-Rangliste —
+ *  bei anderer Sortierung passen sie nicht mehr zur angezeigten Rang-
+ *  bzw. Kennzahl, deshalb blenden wir sie dann aus statt ein irreführendes
+ *  Delta zu zeigen. Die groß dargestellte Kennzahl rechts wechselt mit der
+ *  aktiven Sortierung (Elo/Quote/Spiele/Bonusbiere/Siege) — vorher stand
+ *  dort unabhängig von sortBy immer die Elo. */
 export function LeaderboardRow({
   player,
   rank,
-  showRankDelta = true,
+  sortBy = "elo",
 }: {
   player: Player;
   rank: number;
-  showRankDelta?: boolean;
+  sortBy?: LeaderboardSortKey;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const showEloDelta = sortBy === "elo";
+  const { value: displayValue, suffix: displaySuffix } = leaderboardDisplayValue(player, sortBy);
 
   return (
     <li className="animate-[rank-in_0.55s_cubic-bezier(0.22,1,0.36,1)_both] border-b-[3px] border-transparent [border-image:repeating-linear-gradient(-35deg,var(--color-clay)_0px,var(--color-clay)_8px,var(--color-signal-yellow)_8px,var(--color-signal-yellow)_16px)_1]">
@@ -43,7 +52,7 @@ export function LeaderboardRow({
               {rank}
             </span>
             <span className="text-[11px] font-semibold tracking-[0.04em]">
-              <DeltaLabel value={showRankDelta ? player.rankDelta : null} />
+              <DeltaLabel value={showEloDelta ? player.rankDelta : null} />
             </span>
           </span>
 
@@ -63,10 +72,13 @@ export function LeaderboardRow({
 
           <span className="shrink-0 text-right">
             <span className="block font-display text-2xl text-foam sm:text-[24px]">
-              {player.elo}
+              {displayValue}
+              {displaySuffix}
             </span>
             <span className="block text-[11px] font-semibold">
-              {player.lastEloDelta == null ? (
+              {!showEloDelta ? (
+                <span className="text-foam-faint">{SORT_LABELS[sortBy]}</span>
+              ) : player.lastEloDelta == null ? (
                 <span className="text-foam-faint">±0</span>
               ) : player.lastEloDelta > 0 ? (
                 <span className="text-moss">+{player.lastEloDelta}</span>
