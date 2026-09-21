@@ -527,6 +527,10 @@ export async function getLeaderboard(
     )
     .where(and(eq(player.clubId, clubId), eq(player.isActive, 1)));
 
+  // Spieler ohne bestrittene Spiele gehören nicht ins Leaderboard (weder
+  // Elo noch Rang sind für sie aussagekräftig).
+  const withGames = base.filter((row) => (row.gamesPlayed ?? 0) > 0);
+
   const statRows = await db
     .select({
       playerId: matchParticipation.playerId,
@@ -574,7 +578,7 @@ export async function getLeaderboard(
     _ratingBeforeLastMatch: number | null;
   };
 
-  const players: PlayerWithPreviousRating[] = base.map((row) => {
+  const players: PlayerWithPreviousRating[] = withGames.map((row) => {
     const stats = statsByPlayer.get(row.playerId);
     const rps = rpsByPlayer.get(row.playerId);
     const lastMatch = lastMatchByPlayer.get(row.playerId);
@@ -1011,6 +1015,25 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
     eloDelta: s.delta != null ? Math.round(Number(s.delta)) : 0,
   }));
 
+  const rpsRows = await db
+    .select({
+      side: matchRpsDraw.side,
+      ehrensteine: matchRpsDraw.ehrensteinCount,
+      playerName: player.displayName,
+    })
+    .from(matchRpsDraw)
+    .innerJoin(player, eq(player.playerId, matchRpsDraw.playerId))
+    .where(eq(matchRpsDraw.matchId, matchId));
+
+  const ehrensteineByTeam: MatchDetail["ehrensteineByTeam"] = {
+    A: { count: 0, playerName: null },
+    B: { count: 0, playerName: null },
+  };
+  for (const r of rpsRows) {
+    const side = r.side as "A" | "B";
+    ehrensteineByTeam[side] = { count: r.ehrensteine, playerName: r.playerName };
+  }
+
   return {
     ...summary,
     eventName: row.eventName ?? undefined,
@@ -1018,6 +1041,7 @@ export async function getMatchDetail(matchId: number): Promise<MatchDetail | und
     eventLocation: row.eventLocation ?? row.clubCity ?? undefined,
     note: row.note ?? undefined,
     playerStats,
+    ehrensteineByTeam,
   };
 }
 

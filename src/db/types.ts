@@ -78,6 +78,15 @@ export type MatchDetail = MatchSummary & {
   eventLocation?: string;
   note?: string;
   playerStats: MatchPlayerStat[];
+  /** Ehrensteine je Team aus der Schnick-Schnack-Schnuck-Auslosung (D22),
+   *  siehe match_rps_draw. Nur für bereits bewertete Spiele gefüllt.
+   *  playerName ist der Spieler, der die Auslosung für dieses Team
+   *  bestritten hat — null, wenn für die Seite keine Auslosung erfasst
+   *  wurde. */
+  ehrensteineByTeam: {
+    A: { count: number; playerName: string | null };
+    B: { count: number; playerName: string | null };
+  };
 };
 
 /** MatchSummary + note, nur für getMatchesGroupedByEvent()/die

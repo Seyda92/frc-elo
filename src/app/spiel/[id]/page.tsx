@@ -89,6 +89,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
             side="A"
             match={match}
             isWinner={match.winner === "A"}
+            isPlayed={isPlayed}
           />
           <TeamPanel
             title={match.teamBName}
@@ -96,6 +97,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
             side="B"
             match={match}
             isWinner={match.winner === "B"}
+            isPlayed={isPlayed}
           />
         </div>
       </div>
@@ -134,20 +136,23 @@ function TeamPanel({
   side,
   match,
   isWinner,
+  isPlayed,
 }: {
   title: string;
   accent: "amber" | "foam";
   side: "A" | "B";
   match: MatchDetail;
   isWinner: boolean;
+  isPlayed: boolean;
 }) {
   const roster = match.playerStats.filter((s) => s.side === side);
+  const ehrensteine = match.ehrensteineByTeam[side];
 
   return (
     <section
       className={isWinner ? "border border-amber bg-amber/5" : "border border-line bg-asphalt-raised/40"}
     >
-      <header className="flex items-center justify-between border-b border-line px-4 py-4 sm:px-5">
+      <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-4 sm:px-5">
         <h2
           className={`font-display text-3xl tracking-tight ${
             accent === "amber" ? "text-amber" : "text-foam"
@@ -155,9 +160,20 @@ function TeamPanel({
         >
           {title}
         </h2>
-        {isWinner && (
-          <span className="text-xs uppercase tracking-[0.16em] text-amber">Sieger</span>
-        )}
+        <div className="flex items-center gap-3">
+          {isPlayed && (
+            <span
+              className="text-xs text-foam-muted"
+              title={ehrensteine.playerName ? `Ehrensteine · ${ehrensteine.playerName}` : "Ehrensteine"}
+            >
+              🪨 {ehrensteine.count}
+              {ehrensteine.playerName ? ` · ${ehrensteine.playerName}` : ""}
+            </span>
+          )}
+          {isWinner && (
+            <span className="text-xs uppercase tracking-[0.16em] text-amber">Sieger</span>
+          )}
+        </div>
       </header>
 
       <ul className="divide-y divide-line">
